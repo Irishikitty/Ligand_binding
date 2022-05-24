@@ -13,10 +13,8 @@ import torch.optim as optim
 import os
 from axial_attention import AxialAttention, AxialPositionalEmbedding
 
-
-
-
 BATCH_SIZE = 32
+device = ['cuda: 0' if torch.cuda.is_available() else 'cpu']
 
 dir_ = os.getcwd()
 data = pdb_dataset(dir_+'/ligand_env_coords_subset_zn.pkl')
@@ -24,7 +22,7 @@ dataloader = torch.utils.data.DataLoader(
     data,
     batch_size=64,
     shuffle = True)
-encoder_layer = nn.TransformerEncoderLayer(250, 5)
+# encoder_layer = nn.TransformerEncoderLayer(250, 5)
 # encoder = nn.TransformerEncoder(encoder_layer, num_layers=2)
 
 
@@ -44,7 +42,7 @@ pos_emb = AxialPositionalEmbedding(
     shape = (250, 250)
 )
 
-model = nn.Sequential(attn, attn, attn)
+model = nn.Sequential(attn, attn, attn).to(device)
 
 pos_emb(img)
 attn(img) 
@@ -58,6 +56,8 @@ loss_lst = []
 for epoch in range(2):
     for i, data in enumerate(dataloader):
         inputs, outputs = data
+        inputs.to(device)
+        outputs.to(device)
         
         optimizer.zero_grad()
         
