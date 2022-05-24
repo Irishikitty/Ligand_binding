@@ -12,7 +12,6 @@ import pickle
 import torch
 import os
 import pandas as pd
-from torch.utils.data import Dataset
 from scipy.spatial.transform import Rotation as R
 from sklearn.metrics import pairwise_distances
 import numpy as np
@@ -44,7 +43,7 @@ def data_preprocessing_tensor(types):
     return container
 
 dir_ = os.getcwd()
-protein_ligand = pd.read_pickle(dir_+ '/Ligand_binding/ligand_env_coords_subset_zn.pkl')
+protein_ligand = pd.read_pickle(dir_+ '/Ligand_binding/data/ligand_env_coords_subset_zn.pkl')
 training_data=[]
 for index in range(len(protein_ligand)):
                    
