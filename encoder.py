@@ -14,11 +14,11 @@ import os
 import seaborn as sns
 from axial_attention import AxialAttention, AxialPositionalEmbedding
 
-BATCH_SIZE = 16
-device = ['cuda: 0' if torch.cuda.is_available() else 'cpu']
+BATCH_SIZE = 8
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = torch.device(device)
 
-dir_ = os.getcwd()
-data = pdb_dataset(dir_+'/ligand_env_coords_subset_zn.pkl')
+data = pdb_dataset()
 dataloader = torch.utils.data.DataLoader(
     data,
     batch_size=BATCH_SIZE,
@@ -55,8 +55,8 @@ loss_lst = []
 for epoch in range(2):
     for i, j in enumerate(dataloader):
         inputs, outputs = j
-        # inputs.to(device)
-        # outputs.to(device)
+        inputs = inputs.to(device)
+        outputs = outputs.to(device)
         
         optimizer.zero_grad()
         
@@ -67,9 +67,13 @@ for epoch in range(2):
         
         
         with torch.no_grad():
-            sns.heatmap(pred[0,0])
+            # sns.heatmap(pred[0,0])
             print(loss.detach())
             loss_lst.append(loss.detach())
         
         
-
+torch.save({'epoch': epoch,
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimize.state_dict(),
+    'loss': loss.detach(),
+    }, 'model.ckpt')

@@ -58,9 +58,9 @@ class pdb_dataset(Dataset):
         return len(self.protein_ligand)
     
     def data_preprocessing_tensor(self, types):
-        container = torch.zeros(22, 250, 250)
+        container = torch.zeros(22, self.input_size, self.input_size)
         for i,c in enumerate(types):
-            for j in range(250):
+            for j in range(self.input_size):
                 container[c-1,i,j] +=1
                 container[c-1,j,i] +=1
         return container
@@ -73,6 +73,7 @@ class pdb_dataset(Dataset):
         pwdist = pairwise_distances(axes)
         input_len = len(axes)
         output_ = torch.zeros(1, self.input_size, self.input_size)
+        
         output_[0, :input_len, :input_len] += pwdist
         
         # Generate random ligand position
@@ -93,10 +94,9 @@ class pdb_dataset(Dataset):
         return input_, output_
 
     def __getitem__(self, index):
-        
         input_, output_ = self.preprocess_data(index)
-        assert input_.shape == (23, 250, 250)
-        assert output_.shape == (23, 250, 250)
+        assert input_.shape == (23, self.input_size, self.input_size)
+        assert output_.shape == (23, self.input_size, self.input_size)
         return input_, output_
     
 
@@ -106,11 +106,11 @@ if __name__ =='__main__':
     data = pdb_dataset()
     dataloader = DataLoader(
         data,
-        batch_size=64,
+        batch_size=3,
         shuffle = True)
     for i, j in enumerate(dataloader):
         print(len(j[0]))
-    # a = next(iter(dataloader))
+    a = next(iter(dataloader))
     
     
     
