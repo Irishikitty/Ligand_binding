@@ -11,16 +11,17 @@ import torch.optim as optim
 from dataloader import pdb_dataset
 import torch.optim as optim
 import os
+import seaborn as sns
 from axial_attention import AxialAttention, AxialPositionalEmbedding
 
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 device = ['cuda: 0' if torch.cuda.is_available() else 'cpu']
 
 dir_ = os.getcwd()
 data = pdb_dataset(dir_+'/ligand_env_coords_subset_zn.pkl')
 dataloader = torch.utils.data.DataLoader(
     data,
-    batch_size=64,
+    batch_size=BATCH_SIZE,
     shuffle = True)
 # encoder_layer = nn.TransformerEncoderLayer(250, 5)
 # encoder = nn.TransformerEncoder(encoder_layer, num_layers=2)
@@ -44,20 +45,18 @@ pos_emb = AxialPositionalEmbedding(
 
 model = nn.Sequential(attn, attn, attn).to(device)
 
-pos_emb(img)
-attn(img) 
+# pos_emb(img)
+# attn(img) 
 
-
-
-optimizer = optim.Adam(encoder_layer.parameters(), lr = 0.001)
+optimizer = optim.Adam(model.parameters(), lr = 0.001)
 criterion = nn.L1Loss()
 loss_lst = []
 
 for epoch in range(2):
-    for i, data in enumerate(dataloader):
-        inputs, outputs = data
-        inputs.to(device)
-        outputs.to(device)
+    for i, j in enumerate(dataloader):
+        inputs, outputs = j
+        # inputs.to(device)
+        # outputs.to(device)
         
         optimizer.zero_grad()
         
@@ -66,8 +65,11 @@ for epoch in range(2):
         loss.backward()
         optimizer.step()
         
-        print(loss.detach())
-        loss_lst.append(loss.detach())
+        
+        with torch.no_grad():
+            sns.heatmap(pred[0,0])
+            print(loss.detach())
+            loss_lst.append(loss.detach())
         
         
 
