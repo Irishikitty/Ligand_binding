@@ -54,14 +54,15 @@ loss_lst = []
 
 for epoch in range(2):
     for i, j in enumerate(dataloader):
-        inputs, outputs = j
+        inputs, outputs, input_lens = j
         inputs = inputs.to(device)
         outputs = outputs.to(device)
         
         optimizer.zero_grad()
         
         pred = model(inputs)
-        loss = criterion(outputs,pred)
+        # loss = criterion(outputs, pred)
+        loss = torch.mean((pred-outputs)[:,:,200:201,200:201])
         loss.backward()
         optimizer.step()
         
@@ -74,6 +75,9 @@ for epoch in range(2):
         
 torch.save({'epoch': epoch,
     'model_state_dict': model.state_dict(),
-    'optimizer_state_dict': optimize.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
     'loss': loss.detach(),
     }, 'model.ckpt')
+
+
+print(model.parameters())

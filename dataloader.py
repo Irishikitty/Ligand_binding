@@ -91,13 +91,13 @@ class pdb_dataset(Dataset):
         input_ = torch.cat([input_, tensor_stack], dim = 0)
         output_ = torch.cat([output_, tensor_stack], dim = 0)
         
-        return input_, output_
+        return input_, output_, input_len
 
     def __getitem__(self, index):
-        input_, output_ = self.preprocess_data(index)
+        input_, output_, input_len = self.preprocess_data(index)
         assert input_.shape == (23, self.input_size, self.input_size)
         assert output_.shape == (23, self.input_size, self.input_size)
-        return input_, output_
+        return input_, output_, input_len
     
 
 if __name__ =='__main__':
