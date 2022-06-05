@@ -15,6 +15,7 @@ import seaborn as sns
 from axial_attention import AxialAttention, AxialPositionalEmbedding
 
 BATCH_SIZE = 16
+NUM_TRN = 4
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 device = torch.device(device)
 
@@ -34,7 +35,10 @@ attn = AxialAttention(
     # whether to sum the contributions of attention on each axis, or to run the input through them sequentially. defaults to true
 )
 
-model = nn.Sequential(attn, attn, attn, attn, torch.nn.Conv2d(23, 1, 1)).to(device)
+model = []
+for i in range(NUM_TRN):
+    model.append(attn)
+model = nn.Sequential(*model, torch.nn.Conv2d(23, 1, 1)).to(device)
 
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 criterion = nn.L1Loss()
