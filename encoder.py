@@ -14,7 +14,7 @@ import os
 import seaborn as sns
 from axial_attention import AxialAttention, AxialPositionalEmbedding
 
-BATCH_SIZE = 8
+BATCH_SIZE = 16
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 device = torch.device(device)
 
@@ -22,33 +22,21 @@ data = pdb_dataset()
 dataloader = torch.utils.data.DataLoader(
     data,
     batch_size=BATCH_SIZE,
-    shuffle = True)
-# encoder_layer = nn.TransformerEncoderLayer(250, 5)
-# encoder = nn.TransformerEncoder(encoder_layer, num_layers=2)
-
-
-img = torch.randn(1, 23, 250, 250)
+    shuffle=True)
 
 attn = AxialAttention(
-    dim = 23,               # embedding dimension
-    dim_index = 1,         # where is the embedding dimension
-    dim_heads = 23,        # dimension of each head. defaults to dim // heads if not supplied
-    heads = 1,             # number of heads for multi-head attention
-    num_dimensions = 2,    # number of axial dimensions (images is 2, video is 3, or more)
-    sum_axial_out = True   # whether to sum the contributions of attention on each axis, or to run the input through them sequentially. defaults to true
+    dim=23,  # embedding dimension
+    dim_index=1,  # where is the embedding dimension
+    dim_heads=23,  # dimension of each head. defaults to dim // heads if not supplied
+    heads=1,  # number of heads for multi-head attention
+    num_dimensions=2,  # number of axial dimensions (images is 2, video is 3, or more)
+    sum_axial_out=True
+    # whether to sum the contributions of attention on each axis, or to run the input through them sequentially. defaults to true
 )
 
-pos_emb = AxialPositionalEmbedding(
-    dim = 23,
-    shape = (250, 250)
-)
+model = nn.Sequential(attn, attn, attn, attn, torch.nn.Conv2d(23, 1, 1)).to(device)
 
-model = nn.Sequential(attn, attn, attn).to(device)
-
-# pos_emb(img)
-# attn(img) 
-
-optimizer = optim.Adam(model.parameters(), lr = 0.001)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 criterion = nn.L1Loss()
 loss_lst = []
 
@@ -57,27 +45,22 @@ for epoch in range(2):
         inputs, outputs, input_lens = j
         inputs = inputs.to(device)
         outputs = outputs.to(device)
-        
         optimizer.zero_grad()
-        
+
         pred = model(inputs)
-        # loss = criterion(outputs, pred)
-        loss = torch.mean((pred-outputs)[:,:,200:201,200:201])
+        loss = criterion(outputs, pred)
         loss.backward()
         optimizer.step()
-        
-        
+
         with torch.no_grad():
             # sns.heatmap(pred[0,0])
             print(loss.detach())
             loss_lst.append(loss.detach())
-        
-        
-torch.save({'epoch': epoch,
-    'model_state_dict': model.state_dict(),
-    'optimizer_state_dict': optimizer.state_dict(),
-    'loss': loss.detach(),
-    }, 'model.ckpt')
 
+        if i % 1000 == 0:
+            torch.save({'epoch': epoch,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'loss': loss.detach(),
+                        }, 'model.ckpt')
 
-print(model.parameters())

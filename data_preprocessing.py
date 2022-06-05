@@ -20,15 +20,15 @@ np.random.seed(10)
 input_size = 250
 
 # # use ligand len < 50 as subsample
-# train_sample = pd.read_pickle('./data/train_ligand_env_coords_0509.pickle')
-# idx = [len(i[2])<=50 for i in train_sample]
-# subsample = [train_sample[i] for i,j in enumerate(idx) if j==True]
+train_sample = pd.read_pickle('./data/train_ligand_env_coords_0509.pickle')
+idx = [len(i[2])<=50 for i in train_sample]
+subsample = [train_sample[i] for i,j in enumerate(idx) if j==True]
 
 
 # # # count the number of each single atom
-# atoms = [i[1] for i in subsample if len(i[2])==1]
-# Counter(atoms)
-# Counter([i[1] for i in subsample]).most_common()
+atoms = [i[1] for i in subsample if len(i[2])==1]
+Counter(atoms)
+Counter([i[1] for i in subsample]).most_common()
 
 # # save Zn
 # subsample_zn = [i for i in subsample if i[1] == 'ZN']

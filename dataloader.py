@@ -73,7 +73,6 @@ class pdb_dataset(Dataset):
         pwdist = pairwise_distances(axes)
         input_len = len(axes)
         output_ = torch.zeros(1, self.input_size, self.input_size)
-        
         output_[0, :input_len, :input_len] += pwdist
         
         # Generate random ligand position
@@ -85,18 +84,16 @@ class pdb_dataset(Dataset):
         pwdist = pairwise_distances(rot_axes)
         input_ = torch.zeros(1, input_size,input_size)
         input_[0, :input_len, :input_len] += pwdist
+        
         # Add type channels
         tensor_stack = self.data_preprocessing_tensor(types)
-    
         input_ = torch.cat([input_, tensor_stack], dim = 0)
-        output_ = torch.cat([output_, tensor_stack], dim = 0)
         
         return input_, output_, input_len
 
     def __getitem__(self, index):
         input_, output_, input_len = self.preprocess_data(index)
-        assert input_.shape == (23, self.input_size, self.input_size)
-        assert output_.shape == (23, self.input_size, self.input_size)
+        # print(output_.shape)
         return input_, output_, input_len
     
 
