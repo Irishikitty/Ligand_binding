@@ -3,8 +3,7 @@
 Solving protein ligand docking prediction problem.
 
 
-1. pix2pix module
-
+1. pix2pix module (Unet with self-attention)
 Basic module adopted from https://github.com/phillipi/pix2pix
 
 2. benchmark model (self-attention blocks + conv2d)
