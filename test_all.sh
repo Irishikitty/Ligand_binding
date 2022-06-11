@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 start = 39
 end = 399
 dir="/home/ml20gd/Ligand_binding/checkpoints/pix2pix/"
