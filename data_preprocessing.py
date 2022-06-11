@@ -20,7 +20,7 @@ np.random.seed(10)
 input_size = 250
 
 # # use ligand len < 50 as subsample
-train_sample = pd.read_pickle('./data/train_ligand_env_coords_0509.pickle')
+train_sample = pd.read_pickle('train_ligand_env_coords_0509.pickle')
 idx = [len(i[2])<=50 for i in train_sample]
 subsample = [train_sample[i] for i,j in enumerate(idx) if j==True]
 
@@ -31,13 +31,13 @@ Counter(atoms)
 Counter([i[1] for i in subsample]).most_common()
 
 # # save Zn
-# subsample_zn = [i for i in subsample if i[1] == 'ZN']
-# with open('./data/ligand_env_coords_subset_zn.pkl', 'wb') as handle:
-#     pickle.dump(subsample_zn, handle)   
+subsample_zn = [i for i in subsample if i[1] == 'ZN']
+with open('./Ligand_binding/datasets/ligand_env_coords_subset_zn.pkl', 'wb') as handle:
+    pickle.dump(subsample_zn, handle)   
 # save len == 1
-# subsample = [i for i in subsample if len(i[2])==1]
-# with open('./data/ligand_env_coords_subset_len1.pkl', 'wb') as handle:
-#     pickle.dump(subsample, handle)   
+subsample = [i for i in subsample if len(i[2])==1]
+with open('./Ligand_binding/datasets/ligand_env_coords_subset_len1.pkl', 'wb') as handle:
+    pickle.dump(subsample, handle)   
 
 
 

@@ -85,7 +85,7 @@ class pdb_dataset(Dataset):
         input_ = torch.zeros(1, input_size,input_size)
         input_[0, :input_len, :input_len] += pwdist
         
-        # Add type channels
+        # Add other channels
         tensor_stack = self.data_preprocessing_tensor(types)
         input_ = torch.cat([input_, tensor_stack], dim = 0)
         
