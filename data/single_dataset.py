@@ -3,6 +3,10 @@ from data.image_folder import make_dataset
 from PIL import Image
 import torch
 import pickle
+from .Preprocessing import data_preprocessing_24channel_multi_distill
+import numpy as np
+import torch.nn as nn
+
 
 # ========================================================================================
 
@@ -39,14 +43,9 @@ class SingleDataset(BaseDataset):
 
         self.dir =  opt.dataroot
         print("loading: ", self.dir)
-        self.all_points = load(self.dir + '/' + 'test_all_points_dict.pickle')
-        self.selected_ligand_atom_pair = load(self.dir + '/' + 'test_selected_ligand_atom_pair.pickle')
-
-        self.ligand_loc_key = torch.tensor([*self.all_points.keys()])
-        # self.ligand_loc_key = [*self.selected_ligand_atom_pair.keys()]
-        self.len = len(self.ligand_loc_key)
-
-
+        self.max_dims = 250
+        self.ligand_atoms_pair = load(self.dir  + '/test_ligand_env_coords.pickle')
+        self.len = len(self.ligand_atoms_pair)
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
@@ -62,13 +61,13 @@ class SingleDataset(BaseDataset):
         # A_img = Image.open(A_path).convert('RGB')
         # A = self.transform(A_img)
 
-        A = self.ligand_loc_key[index]
-
+        # A = self.ligand_loc_key[index]
 
         key_path = self.dir
-
-        return {'key': A, 'A_paths': key_path}
+        return {'key': self.ligand_atoms_pair[index], 'A_paths': key_path}
 
     def __len__(self):
         """Return the total number of images in the dataset."""
         return self.len
+
+
