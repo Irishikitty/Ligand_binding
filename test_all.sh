@@ -1,6 +1,6 @@
 #!/bin/bash
-start = 39
-end = 399
+start=39
+end=399
 dir="/home/ml20gd/Ligand_binding/checkpoints/pix2pix/"
 
 for seed in 2000; do
@@ -15,3 +15,4 @@ for seed in 2000; do
     done
   done
 done
+

@@ -51,8 +51,8 @@ def seed_everything(seed):
     torch.backends.cudnn.benchmark = False
 
 
+
 if __name__ == '__main__':
-    pass
 
     opt = TestOptions().parse()  # get test options
     seed_everything(opt.seed)
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     model.setup(opt)              # regular setup: load and print networks; create schedulers
 
     print(opt)
-
+    # print('Here'*100)
     # initialize logger
     if opt.use_wandb:
         wandb_run = wandb.init(project='CycleGAN-and-pix2pix', name=opt.name, config=opt) if not wandb.run else wandb.run
@@ -130,5 +130,7 @@ if __name__ == '__main__':
 
     save(ligand_rmsd, f'./output/ligand_rmsd_{opt.epoch}_seed{opt.seed}_iter{opt.iterations}.pickle')
     save(ligand_rmsd_2step, f'./output/ligand_rmsd_2step_{opt.epoch}_seed{opt.seed}_iter{opt.iterations}.pickle')
-    # save(dists_S_rmsd, f'./dists_S_rmsd_{opt.epoch}_try1.pickle')
+   # save(dists_S_rmsd, f'./dists_S_rmsd_{opt.epoch}_try1.pickle')
     save(starting_rmsd, f'./output/starting_rmsd_{opt.epoch}_seed{opt.seed}_iter{opt.iterations}.pickle')
+
+print('All is done')
