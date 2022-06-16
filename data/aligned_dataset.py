@@ -1,13 +1,12 @@
 import os
 import random
-
 from .base_dataset import BaseDataset, get_params, get_transform
 import pickle as pickle
 import torch
-from .Preprocessing import data_preprocessing_2channel, seed_everything, data_preprocessing_24channel_multi, data_preprocessing_52channel, data_preprocessing_30channel, \
-    data_preprocessing_24channel_multi_distill
+from .Preprocessing import data_preprocessing_24channel_multi, data_preprocessing_24channel_multi_distill, data_toTensor, data_to_0_1
 import numpy as np
-import torch.nn as nn
+# import torch.nn as nn
+np.seterr(over='ignore')
 
 def save(a, file_name):
     with open(file_name, 'wb') as handle:
@@ -42,7 +41,7 @@ class AlignedDataset(BaseDataset):
         self.dir =  opt.dataroot
         print("loading from ", self.dir)
         self.max_dims = 250
-        self.ligand_atoms_pair = load(self.dir  + '/train_ligand_env_coords.pickle')
+        self.ligand_atoms_pair = load(self.dir  + '/charge/df_train_pos.pkl')
         self.len = len(self.ligand_atoms_pair)
 
     def __getitem__(self, index):
@@ -59,34 +58,25 @@ class AlignedDataset(BaseDataset):
         """
 
         pdbid, ligand_name, ligand, atoms= self.ligand_atoms_pair[index]
-        ligand_loc_list = [ele[1:] for ele in ligand]
-        center_loc = np.mean(np.array(ligand_loc_list), axis=0)
-        assert center_loc.shape == (3,)
-        start_center_loc = self.path_generator(atoms, center_loc.tolist())
-        starting_ligand_loc = np.array(ligand_loc_list) + np.array(start_center_loc) - center_loc
-        starting_ligand = np.vstack([[22]*len(ligand), starting_ligand_loc.T]).T
+        # ligand_loc_list = [ele[1:] for ele in ligand]
+        # center_loc = np.mean(np.array(ligand_loc_list), axis=0)
+        # assert center_loc.shape == (3,)
+        # start_center_loc = self.path_generator(atoms, center_loc.tolist())
+        # starting_ligand_loc = np.array(ligand_loc_list) + np.array(start_center_loc) - center_loc
+        # starting_ligand = np.vstack([[22]*len(ligand), starting_ligand_loc.T]).T
 
-        tempFakeA, tempTrueB = data_preprocessing_24channel_multi_distill(starting_ligand, atoms, ligand)
+        # tempFakeA = data_toTensor(starting_ligand, atoms, self.max_dims)
+        # tempTrueB = data_toTensor(ligand, atoms, self.max_dims)
+        tempFakeA, tempTrueB = data_toTensor(ligand, atoms, dim_max = self.max_dims, start=True)
 
-        assert tempFakeA.shape[2] <= self.max_dims
-        assert tempTrueB.shape[2] <= self.max_dims
 
-        if tempFakeA.shape[2] % 2 == 0:
-            padding = self.max_dims - tempFakeA.shape[1]
-            m = nn.ZeroPad2d(padding // 2)
-        else:
-            assert tempFakeA.shape[2] % 2 == 1
-            padding = self.max_dims - tempFakeA.shape[1]
-            m = nn.ZeroPad2d((padding//2, padding//2+1, padding//2, padding//2+1))
+        tempFakeA[0] = data_to_0_1(tempFakeA[0]) # [-1,1]
+        tempTrueB[0] = data_to_0_1(tempTrueB[0]) # [-1,1]
 
-        A, B = m(torch.tensor(tempFakeA)), m(torch.tensor(tempTrueB))
-        A[0, :, :] = (A[0, :, :] / 82) * 2 - 1
-        B[0, :, :] = (B[0, :, :] / 82) * 2 - 1
+        # assert tempFakeA.shape == (24, 250, 250)
+        # assert tempTrueB.shape == (24, 250, 250)
 
-        assert A.shape == (24, 250, 250)
-        assert B.shape == (24, 250, 250)
-
-        return {'A': A.float(), 'B': B.float(), 'A_paths': "None", 'B_paths': "None",
+        return {'A': tempFakeA.float(), 'B': tempTrueB.float(), 'A_paths': "None", 'B_paths': "None",
                 'Ligand_length': len(ligand) , 'env_atoms_length': len(atoms) }
 
 

@@ -88,7 +88,7 @@ class SimpleModel(BaseModel):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
         # caculate the intermediate results if necessary; here self.output has been computed during function <forward>
         # calculate loss given the input and intermediate results
-        self.loss_G = self.criterionLoss(self.output[:,0], self.data_B[:,0]) * self.opt.lambda_regression
+        self.loss_G = self.criterionLoss(self.output, self.data_B[:,0]) * self.opt.lambda_regression
         self.loss_G.backward()       # calculate gradients of network G w.r.t. loss_G
 
     def optimize_parameters(self):
