@@ -18,9 +18,9 @@ from collections import Counter
 import json
 import numpy as np
 
-file = pickle.load(open("./testligand_env_coords.pickle", "rb"))
+file = pickle.load(open("./train_ligand_env_coords.pickle", "rb"))
 
-temp = 'test' # test or train
+temp = 'train' # test or train
 file_train = file
 # file_test = file
 

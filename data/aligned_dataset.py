@@ -57,6 +57,7 @@ class AlignedDataset(BaseDataset):
             B_paths (str) - - image paths (same as A_paths)
         """
 
+        # if needs starting position
         pdbid, ligand_name, ligand, atoms= self.ligand_atoms_pair[index]
         # ligand_loc_list = [ele[1:] for ele in ligand]
         # center_loc = np.mean(np.array(ligand_loc_list), axis=0)
@@ -64,9 +65,11 @@ class AlignedDataset(BaseDataset):
         # start_center_loc = self.path_generator(atoms, center_loc.tolist())
         # starting_ligand_loc = np.array(ligand_loc_list) + np.array(start_center_loc) - center_loc
         # starting_ligand = np.vstack([[22]*len(ligand), starting_ligand_loc.T]).T
+        #
+        # tempFakeA = data_toTensor(starting_ligand, atoms)
+        # tempTrueB = data_toTensor(ligand, atoms)
 
-        # tempFakeA = data_toTensor(starting_ligand, atoms, self.max_dims)
-        # tempTrueB = data_toTensor(ligand, atoms, self.max_dims)
+        # if do not need starting position
         tempFakeA, tempTrueB = data_toTensor(ligand, atoms, dim_max = self.max_dims, start=True)
 
 
