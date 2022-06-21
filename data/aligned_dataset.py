@@ -5,6 +5,7 @@ import pickle as pickle
 import torch
 from .Preprocessing import data_preprocessing_24channel_multi, data_preprocessing_24channel_multi_distill, data_toTensor, data_to_0_1
 import numpy as np
+import pandas as pd
 # import torch.nn as nn
 np.seterr(over='ignore')
 
@@ -41,8 +42,8 @@ class AlignedDataset(BaseDataset):
         self.dir =  opt.dataroot
         print("loading from ", self.dir)
         self.max_dims = 250
-        self.ligand_atoms_pair = load(self.dir  + '/charge/df_train_pos.pkl')
-        self.len = len(self.ligand_atoms_pair)
+        self.data_subdir = opt.dataroot  + '/charge/training_pos/'
+        self.len = len(os.listdir(self.data_subdir))
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
@@ -57,30 +58,11 @@ class AlignedDataset(BaseDataset):
             B_paths (str) - - image paths (same as A_paths)
         """
 
-        # if needs starting position
-        pdbid, ligand_name, ligand, atoms= self.ligand_atoms_pair[index]
-        # ligand_loc_list = [ele[1:] for ele in ligand]
-        # center_loc = np.mean(np.array(ligand_loc_list), axis=0)
-        # assert center_loc.shape == (3,)
-        # start_center_loc = self.path_generator(atoms, center_loc.tolist())
-        # starting_ligand_loc = np.array(ligand_loc_list) + np.array(start_center_loc) - center_loc
-        # starting_ligand = np.vstack([[22]*len(ligand), starting_ligand_loc.T]).T
-        #
-        # tempFakeA = data_toTensor(starting_ligand, atoms)
-        # tempTrueB = data_toTensor(ligand, atoms)
+        name = self.data_subdir + 'img_' + str(index) + '.pkl'
+        img = dict(pd.read_pickle(name))
 
-        # if do not need starting position
-        tempFakeA, tempTrueB = data_toTensor(ligand, atoms, dim_max = self.max_dims, start=True)
-
-
-        tempFakeA[0] = data_to_0_1(tempFakeA[0]) # [-1,1]
-        tempTrueB[0] = data_to_0_1(tempTrueB[0]) # [-1,1]
-
-        # assert tempFakeA.shape == (24, 250, 250)
-        # assert tempTrueB.shape == (24, 250, 250)
-
-        return {'A': tempFakeA.float(), 'B': tempTrueB.float(), 'A_paths': "None", 'B_paths': "None",
-                'Ligand_length': len(ligand) , 'env_atoms_length': len(atoms) }
+        return {'A': img['A'].float(), 'B': img['B'].float(), 'A_paths': "None", 'B_paths': "None",
+         'Ligand_length': img['Ligand_length'], 'env_atoms_length': img['env_atoms_length']}
 
 
     def __len__(self):
