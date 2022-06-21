@@ -702,9 +702,10 @@ class SimpleModel(nn.Module):
     
 if __name__ == '__main__':
 
-    model = define_G(23, 23, 128, 'generator', 'instance', True, 'normal', 0.02)
+    model = define_G(23, 23, 128, 'unet_256', 'instance', True, 'normal', 0.02)
     # sample = torch.rand(1,23,250,250)
-    # print(model)
+    print(model)
+    print(model.parameters())
     # model(sample).shape
     # net = UnetGenerator(24,24)
     # net2 = NLayerDiscriminator(48)
