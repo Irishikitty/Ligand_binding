@@ -2,6 +2,7 @@ from data.base_dataset import BaseDataset, get_transform
 from data.image_folder import make_dataset
 from PIL import Image
 import torch
+import pandas as pd
 import pickle
 from .Preprocessing import data_preprocessing_24channel_multi_distill
 import numpy as np
@@ -44,7 +45,7 @@ class SingleDataset(BaseDataset):
         self.dir =  opt.dataroot
         print("loading: ", self.dir)
         self.max_dims = 250
-        self.ligand_atoms_pair = load(self.dir  + '/test_ligand_env_coords.pickle')
+        self.ligand_atoms_pair = pd.read_pickle(self.dir  + '/charge/df_test_pos.pkl')
         self.len = len(self.ligand_atoms_pair)
 
     def __getitem__(self, index):

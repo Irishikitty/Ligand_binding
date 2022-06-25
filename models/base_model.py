@@ -95,14 +95,14 @@ class BaseModel(ABC):
                 net = getattr(self, 'net' + name)
                 net.eval()
 
-    def test(self):
+    def test(self, iterations):
         """Forward function used in test time.
 
         This function wraps <forward> function in no_grad() so we don't save intermediate steps for backprop
         It also calls <compute_visuals> to produce additional visualization results
         """
         with torch.no_grad():
-            self.forward()
+            self.forward(iterations)
             # self.compute_visuals()
 
     def compute_visuals(self):
@@ -145,13 +145,14 @@ class BaseModel(ABC):
 
         generated_dis_matrix = getattr(self, 'pred_dis_matrix')
         random_atom_data = getattr(self, 'random_env_atoms_data')
-        key = getattr(self, 'target_key_ligand')
-        true_ligands_data = getattr(self, 'true_ligands_data')
+        # key = getattr(self, 'target_key_ligand')
+        # true_ligands_data = getattr(self, 'true_ligands_data')
+        true_ligands_data = getattr(self, 'ligand')
         starting_dis_rmsd = getattr(self, 'starting_rmsd')
         pred_dm = ((generated_dis_matrix.detach()[0, 0, :, :] + 1) / 2) * 80  # remove normalization and extract the distance matrix
-        assert pred_dm.shape == (55, 55)
+        #assert pred_dm.shape == (55, 55)
 
-        dis_final_min, dists_S = rmsd_utils.get_rmsd_Os(pred_dm, random_atom_data, key, true_ligands_data)
+        dis_final_min, dists_S = rmsd_utils.get_rmsd_Os(pred_dm, random_atom_data, true_ligands_data)
         return dis_final_min, dists_S, starting_dis_rmsd
 
 
@@ -211,6 +212,13 @@ class BaseModel(ABC):
                 # patch InstanceNorm checkpoints prior to 0.4
                 # for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop
                 #     self.__patch_instance_norm_state_dict(state_dict, net, key.split('.'))
+                # name_lst = []
+                # state_dict_clone = state_dict.copy()
+                # for name, _ in net.named_parameters():
+                #     name_lst.append(name)
+                # for k, v in state_dict_clone.items():
+                #     if k not in name_lst:
+                #         del state_dict[k]
                 net.load_state_dict(state_dict)
 
     def print_networks(self, verbose):

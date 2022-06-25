@@ -1,7 +1,7 @@
 #!/bin/bash
-start=39
-end=399
-dir="/home/ml20gd/Ligand_binding/checkpoints/pix2pix/"
+start=1
+end=2
+dir="/data/ml20gd/Ligand_binding/checkpoints/simple_generator/"
 
 for seed in 2000; do
   for iterations in 0; do

@@ -62,7 +62,7 @@ if __name__ == '__main__':
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
     opt.no_flip = True    # no flip; comment this line if results on flipped images are needed.
     opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.
-    dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
+    dataset = create_dataset(opt)  # create a dataset given  and other options
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)              # regular setup: load and print networks; create schedulers
 
@@ -96,12 +96,7 @@ if __name__ == '__main__':
     # selected_ligand_atom_pair_data = getattr(dataset, 'selected_ligand_atom_pair')
 
     for i, data in enumerate(dataset):
-        # if i > 10000:
-        #     break
-        # if i >= opt.num_test:  # only apply our model to opt.num_test images.
-        #     break
-        # assert isinstance(data, dict)
-
+        print(i, data)
         model.set_input(data)  # unpack data from data loader
         model.test(opt.iterations)         # run inference
         if opt.iterations > 0:
@@ -109,7 +104,6 @@ if __name__ == '__main__':
             ligand_rmsd.append(pred_ligand_rmsd_1step)
             ligand_rmsd_2step.append(pred_ligand_rmsd_2step)
         if opt.iterations == 0:
-
             pred_ligand_rmsd, pred_starting_rmsd = model.compute_rmsd()
             ligand_rmsd.append(pred_ligand_rmsd)
         starting_rmsd.append(pred_starting_rmsd)

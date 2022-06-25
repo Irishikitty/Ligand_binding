@@ -1,13 +1,8 @@
-import scipy
 import torch
 import numpy as np
-import sys
 from . import Preprocessing
-import math
-import time
-from scipy.spatial import distance_matrix
-from scipy.optimize import linear_sum_assignment
 import torch.nn as nn
+from sklearn.metrics import pairwise_distances
 
 
 # ================================================================================================
@@ -118,7 +113,7 @@ def get_locs(y_fake, random_env_atom_data, ligandLength):
 
 # ======================================================================================================================
 
-def get_rmsd_0s(y_fake, random_env_atom_data, ligand_key, true_ligands):
+def get_rmsd_0s(y_fake, random_env_atom_data, true_ligands):
 
     dis_vector_ligand_Os = extract_dis_vectors(y_fake)
 
@@ -139,85 +134,128 @@ def get_rmsd_0s(y_fake, random_env_atom_data, ligand_key, true_ligands):
 # ======================================================================================================================
 
 
-
-
-
-def get_prediction(key, env_points, ligand_atom_pair, G_model):
-
-    all_points_data = env_points[key]
-    point_step_index = np.random.randint(1, 100)
-    # print(point_step_index)
-    starting_points = all_points_data[0][point_step_index]  # 0 is the path index since only one path generated
-    # print("staring points are:", starting_points)
-    data_24channel, starting_ligands_data, random_atom_data = Preprocessing.data_preprocessing_24channel_multi(starting_points,
-                                                                                                 ligand_atom_pair,
-                                                                                                 key)
-
-    true_atoms_data = ligand_atom_pair[key]['ligand_atoms']
-    true_ligands_data = np.vstack([key, true_atoms_data])
-
-    starting_dist_min = rmsd(starting_ligands_data, true_ligands_data)
-
-
-    x = torch.tensor(data_24channel[:, :, :55]).unsqueeze(0).float()
-    y = torch.tensor(data_24channel[:, :, 55:]).unsqueeze(0).float()
-    assert x.shape == (1, 24, 55, 55)
-    assert y.shape == (1, 24, 55, 55)
-
-    x[0, 0, :, :] = (x[0, 0, :, :] / 80) * 2 - 1
-    x = x.to(config.DEVICE)
-    with torch.no_grad():
-        y_fake = G_model(x)                           # y_fake: 4 dimensions
-    pred_y = ((y_fake[0, 0, :, :] + 1) / 2) * 80  # remove normalization and extract the distance matrix
-    assert pred_y.shape == (55, 55)
-
-
-    dis_final_min, dists_S = get_rmsd_Os(pred_y, random_atom_data, key, true_ligands_data)
-    # dists_onestep.append(dis_final_min.tolist())
-
-    # return dists_onestep, pred_loc_onestep_list, dists_twostep, pred_loc_twostep_list, starting_dists, dists_S
-    return dis_final_min, starting_dist_min, dists_S
+# def get_prediction(key, env_points, ligand_atom_pair, G_model):
+#
+#     all_points_data = env_points[key]
+#     point_step_index = np.random.randint(1, 100)
+#     # print(point_step_index)
+#     starting_points = all_points_data[0][point_step_index]  # 0 is the path index since only one path generated
+#     # print("staring points are:", starting_points)
+#     data_24channel, starting_ligands_data, random_atom_data = Preprocessing.data_preprocessing_24channel_multi(starting_points,
+#                                                                                                  ligand_atom_pair,
+#                                                                                                  key)
+#
+#     true_atoms_data = ligand_atom_pair[key]['ligand_atoms']
+#     true_ligands_data = np.vstack([key, true_atoms_data])
+#
+#     starting_dist_min = rmsd(starting_ligands_data, true_ligands_data)
+#
+#
+#     x = torch.tensor(data_24channel[:, :, :55]).unsqueeze(0).float()
+#     y = torch.tensor(data_24channel[:, :, 55:]).unsqueeze(0).float()
+#     assert x.shape == (1, 24, 55, 55)
+#     assert y.shape == (1, 24, 55, 55)
+#
+#     x[0, 0, :, :] = (x[0, 0, :, :] / 80) * 2 - 1
+#     x = x.to(config.DEVICE)
+#     with torch.no_grad():
+#         y_fake = G_model(x)                           # y_fake: 4 dimensions
+#     pred_y = ((y_fake[0, 0, :, :] + 1) / 2) * 80  # remove normalization and extract the distance matrix
+#     assert pred_y.shape == (55, 55)
+#
+#
+#     dis_final_min, dists_S = get_rmsd_Os(pred_y, random_atom_data, key, true_ligands_data)
+#     # dists_onestep.append(dis_final_min.tolist())
+#
+#     # return dists_onestep, pred_loc_onestep_list, dists_twostep, pred_loc_twostep_list, starting_dists, dists_S
+#     return dis_final_min, starting_dist_min, dists_S
 
 
 # ======================================================================================================================
+def data_toTensor(ligand, atoms, dim_max=250, channels = 23):
+    '''
+    3D coordinates of input (ligand + atom)
+    Ouptut tensor with shape [23, dim_sum = 250, 250]
 
-def get_input_dis_matrix(start, env_atoms, target, permute=True, max_dims = 250):
-    # print([*all_points.keys()][0] == target_key)
-    # all_points_data = all_points[target_key]
-    # point_step_index = np.random.randint(1, 100)
-    # # print(point_step_index)
-    # starting_points = all_points_data[0][point_step_index]  # 0 is the path index since only one path generated
-    # print("staring points are:", starting_points)
+    Input:
+        :param ligand: list of [22 x y z]
+        :param atoms: list of [c x y z]
+        :param dim_max: 250 as default
+    Output:
 
-    tempFakeA, tempTrueB, random_atom_data = Preprocessing.data_preprocessing_24channel_multi_distill(start,env_atoms,target)
-    if not permute:
-        assert random_atom_data.shape == np.array(env_atoms).shape
-        assert random_atom_data.all() == np.array(env_atoms).all()
+    '''
+    atoms = [np.stack(atoms[i]).reshape(4,) for i in range(len(atoms))]
+    ligand = [np.stack(ligand[i]).reshape(4,) for i in range(len(ligand))]
+
+    numAtoms, _ = np.array(atoms).shape
+    numLigandAtoms, _ = np.array(ligand).shape
+
+    A_coordinates = pairwise_distances([[x, y, z] for [_, x, y, z] in ligand] + [[x, y, z] for [i, x, y, z] in atoms])
+    types = [int(i) for [i, _, _, _] in atoms]
+    container = torch.zeros(channels-1, *A_coordinates.shape)
+    for i, c in enumerate(types):
+        for j in range(len(types)):
+            container[c - 1, i, j] += 1
+            container[c - 1, j, i] += 1
+    container[container > 0] = 1  # as indicator
+    # build tensor
+    A_coordinates = torch.from_numpy(A_coordinates.reshape(-1, *A_coordinates.shape))
+    A_coordinates = torch.cat([A_coordinates, container], dim=0)
+    A_coordinates[22, :numLigandAtoms, :numLigandAtoms] = 1
+    # move blocks
+    out = torch.zeros(channels, dim_max, dim_max)  # first channel container
+    out[:, :numLigandAtoms, :numLigandAtoms] += A_coordinates[:, :numLigandAtoms, :numLigandAtoms]  # upper left
+    out[:, 50:50 + numAtoms, 50:50 + numAtoms] += A_coordinates[:, numLigandAtoms:, numLigandAtoms:]  # lower right
+    out[:, :numLigandAtoms, 50:50 + numAtoms] += A_coordinates[:, :numLigandAtoms, numLigandAtoms:]  # rectangle upper
+    out[:, 50:50 + numAtoms, :numLigandAtoms] += A_coordinates[:, numLigandAtoms:, :numLigandAtoms]  # rectangle lower
+    return out
 
 
-    if tempFakeA.shape[2] % 2 == 0:
-        padding = max_dims - tempFakeA.shape[1]
-        m = nn.ZeroPad2d(padding // 2)
-    else:
-        assert tempFakeA.shape[2] % 2 == 1
-        padding = max_dims - tempFakeA.shape[1]
-        m = nn.ZeroPad2d((padding // 2, padding // 2 + 1, padding // 2, padding // 2 + 1))
+# ======================================================================================================================
+def data_to_0_1(sample):
+    '''
+    Normalize to [-1, 1]
+    :param sample: input mx/tensor
+    :return: normalized input
+    '''
 
-    A, B = m(torch.tensor(tempFakeA)), m(torch.tensor(tempTrueB))
-    A[0, :, :] = (A[0, :, :] / 82) * 2 - 1
-    B[0, :, :] = (B[0, :, :] / 82) * 2 - 1
+    sample = 2 * sample /80 - 1
+    return sample
 
-    assert A.shape == (24, 250, 250)
-    assert B.shape == (24, 250, 250)
+# ======================================================================================================================
 
-    # true_atoms_data = selected_ligand_atom_pair[target_key]['ligand_atoms']
-    # true_ligands_data = np.vstack([target_key, true_atoms_data])
+# def get_input_dis_matrix(start, env_atoms, target):
+#     '''
+#     :param start: initial location ligands start to move
+#     :param env_atoms: protein env
+#     :param target: true location
+#     :param max_dims: length of mx
+#
+#     :return:
+#     '''
+#
+#     # tempFakeA = data_toTensor(start, env_atoms)[None, :]
+#     # tempTrueB = data_toTensor(target, env_atoms)[None, :]
+#
+#     tempFakeA[0] = data_to_0_1(tempFakeA[0])  # [-1,1]
+#     tempTrueB[0] = data_to_0_1(tempTrueB[0])  # [-1,1]
+#     starting_rmsd = rmsd(start, target, len(target))
+#
+#     return tempFakeA.float(), tempTrueB.float(), starting_rmsd, env_atoms
 
-    starting_rmsd = rmsd(start, target, len(target))
+def get_input_dis_matrix(start, env_atoms, target):
+    tempFakeA = data_toTensor(start, env_atoms, dim_max=250, channels=23)
+    tempTrueB = data_toTensor(target, env_atoms, dim_max=250, channels=23)
 
-    fakeA = A.unsqueeze(0).float()
-    trueB = B.unsqueeze(0).float()
-    assert fakeA.shape == (1, 24, 250, 250)
-    assert trueB.shape == (1, 24, 250, 250)
+    tempFakeA[0] = data_to_0_1(tempFakeA[0])  # [-1,1]
+    tempTrueB[0] = data_to_0_1(tempTrueB[0])  # [-1,1]
 
-    return fakeA, trueB, starting_rmsd, random_atom_data
+    starting_rmsd = rmsd(start, [np.stack(target[i]).reshape(4,) for i in range(len(target))], len(target))
+
+    fakeA = tempFakeA.unsqueeze(0).float()
+    trueB = tempTrueB.unsqueeze(0).float()
+    assert fakeA.shape == (1, 23, 250, 250)
+    assert trueB.shape == (1, 23, 250, 250)
+    env_atoms = [np.stack(env_atoms[i]).reshape(4,) for i in range(len(env_atoms))]
+
+    return fakeA, trueB, starting_rmsd, env_atoms
