@@ -40,21 +40,21 @@ def f_exact_ligand_charge(ligand_name):
 
 lst = [i[1] for i in file]
 lst = Counter(lst).keys()
-df_charge_dict = {}
+# df_charge_dict = {}
 
 
-# for i, v in enumerate(lst):
-#     t1 = time.time()
+for i, v in enumerate(lst):
+    t1 = time.time()
     
-#     ligand_name = v
-#     ligand_charge = f_exact_ligand_charge(ligand_name)
-#     molecules = ligand_name.split(' ')
+    ligand_name = v
+    ligand_charge = f_exact_ligand_charge(ligand_name)
+    molecules = ligand_name.split(' ')
     
-#     # save charge info
-#     df_charge_dict[ligand_name] = ligand_charge
-#     print(f'Time used: {np.round(time.time()-t1,1)}     ligand name: {ligand_name}   ligand charge: {ligand_charge}')
+    # save charge info
+    df_charge_dict[ligand_name] = ligand_charge
+    print(f'Time used: {np.round(time.time()-t1,1)}     ligand name: {ligand_name}   ligand charge: {ligand_charge}')
 
-# # create json object from dictionary
+# create json object from dictionary
 # json = json.dumps(df_charge_dict)
 # f = open("df_charge_dict.json","w")
 # f.write(json)

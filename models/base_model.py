@@ -1,19 +1,15 @@
+import copy
 import os
 import torch
 from collections import OrderedDict
 from abc import ABC, abstractmethod
 from . import networks
 from . import rmsd_utils
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 class BaseModel(ABC):
-    """This class is an abstract base class (ABC) for models.
-    To create a subclass, you need to implement the following five functions:
-        -- <__init__>:                      initialize the class; first call BaseModel.__init__(self, opt).
-        -- <set_input>:                     unpack data from dataset and apply preprocessing.
-        -- <forward>:                       produce intermediate results.
-        -- <optimize_parameters>:           calculate losses, gradients, and update network weights.
-        -- <modify_commandline_options>:    (optionally) add model-specific options and set default options.
-    """
 
     def __init__(self, opt):
         """Initialize the BaseModel class.
@@ -32,7 +28,8 @@ class BaseModel(ABC):
         self.opt = opt
         self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
-        self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device('cpu')  # get device name: CPU or GPU
+        self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device(
+            'cpu')  # get device name: CPU or GPU
         self.save_dir = os.path.join(opt.checkpoints_dir, opt.name)  # save all the checkpoints to save_dir
         # if opt.preprocess != 'scale_width':  # with [scale_width], input images might have different sizes, which hurts the performance of cudnn.benchmark.
         torch.backends.cudnn.benchmark = True
@@ -57,7 +54,7 @@ class BaseModel(ABC):
         return parser
 
     @abstractmethod
-    def set_input(self, input, a, b):
+    def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
 
         Parameters:
@@ -66,7 +63,7 @@ class BaseModel(ABC):
         pass
 
     @abstractmethod
-    def forward(self):
+    def forward(self, iterations):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         pass
 
@@ -138,23 +135,84 @@ class BaseModel(ABC):
         errors_ret = OrderedDict()
         for name in self.loss_names:
             if isinstance(name, str):
-                errors_ret[name] = float(getattr(self, 'loss_' + name))  # float(...) works for both scalar tensor and float number
+                errors_ret[name] = float(
+                    getattr(self, 'loss_' + name))  # float(...) works for both scalar tensor and float number
         return errors_ret
 
     def compute_rmsd(self):
 
-        generated_dis_matrix = getattr(self, 'pred_dis_matrix')
+        pred_dis_matrix = getattr(self, 'pred_dis_matrix').detach().clone()
+
         random_atom_data = getattr(self, 'random_env_atoms_data')
-        # key = getattr(self, 'target_key_ligand')
-        # true_ligands_data = getattr(self, 'true_ligands_data')
-        true_ligands_data = getattr(self, 'ligand')
         starting_dis_rmsd = getattr(self, 'starting_rmsd')
-        pred_dm = ((generated_dis_matrix.detach()[0, 0, :, :] + 1) / 2) * 80  # remove normalization and extract the distance matrix
-        #assert pred_dm.shape == (55, 55)
+        ligandLength = getattr(self, 'ligandLength')
+        atomsLength = getattr(self, 'atomsLength')
+        true_ligands_atoms = getattr(self, 'ligand_atoms')
+        _, _, true_ligands, atoms = true_ligands_atoms
 
-        dis_final_min, dists_S = rmsd_utils.get_rmsd_Os(pred_dm, random_atom_data, true_ligands_data)
-        return dis_final_min, dists_S, starting_dis_rmsd
+        assert len(pred_dis_matrix.shape) == 4
+        sub_pred_dist_matrix = self.get_original_matrix(pred_dis_matrix.cpu()[0, 0,:, :], ligandLength, atomsLength)
 
+        pred_dm = ((sub_pred_dist_matrix + 1) / 2) * 80  # remove normalization and extract the distance matrix
+        # print("ligand length is: ", ligandLength)
+        pred_rmsd, predicted_loc = rmsd_utils.get_rmsd(pred_dm, random_atom_data, true_ligands, ligandLength)
+
+        return pred_rmsd, starting_dis_rmsd, predicted_loc, pred_dm
+
+    def compute_rmsd_2step(self):
+
+        pred_dis_matrix = getattr(self, 'pred_dis_matrix').detach().clone()
+        pred_dis_matrix_2step = getattr(self, 'pred_dis_matrix_2step').detach().clone()
+
+        random_atom_data = getattr(self, 'random_env_atoms_data')
+        starting_dis_rmsd = getattr(self, 'starting_rmsd')
+        ligandLength = getattr(self, 'ligandLength')
+        atomsLength = getattr(self, 'atomsLength')
+        true_ligands_atoms = getattr(self, 'ligand_atoms')
+        _, _, true_ligands, atoms = true_ligands_atoms
+
+
+        assert len(pred_dis_matrix.shape) == 4
+        sub_pred_dist_matrix = self.get_original_matrix(pred_dis_matrix[0, 0,:, :], ligandLength, atomsLength)
+        sub_pred_dist_matrix_2step = self.get_original_matrix(pred_dis_matrix_2step[0, 0,:, :], ligandLength, atomsLength)
+
+        pred_dm = ((sub_pred_dist_matrix + 1) / 2) * 80  # remove normalization and extract the distance matrix
+        pred_dm_2step = ((sub_pred_dist_matrix_2step + 1) / 2) * 80  # remove normalization and extract the distance matrix
+        # print("ligand length is: ", ligandLength)
+        pred_rmsd = rmsd_utils.get_rmsd(pred_dm, random_atom_data, true_ligands, ligandLength)
+        pred_rmsd_2step = rmsd_utils.get_rmsd(pred_dm_2step, random_atom_data, true_ligands, ligandLength)
+
+        return pred_rmsd, pred_rmsd_2step, starting_dis_rmsd
+
+
+    def get_original_matrix(self, temp_input_matrix, ligandLength, atomsLength, avg = True):
+        '''
+        Recover original matrix [protein_env + ligand, protein_env + ligand]
+
+        :param temp_input_matrix: predicted output
+        :param ligandLength:
+        :param atomsLength:
+        :param avg: if True, then take the avg of two bars
+        :return:
+        '''
+        input_matrix = copy.deepcopy(temp_input_matrix)
+        assert input_matrix.shape == (250, 250)
+
+        side = ligandLength + atomsLength
+        sub_input_matrix = np.zeros((side,side))
+
+        # protein to the upper left; ligand to lower right
+        sub_input_matrix[:atomsLength, :atomsLength] += np.array(temp_input_matrix[50:50+atomsLength, 50:50+atomsLength])  # protein
+        sub_input_matrix[200:200+ligandLength, 200:200+ligandLength] += np.array(temp_input_matrix[:ligandLength, :ligandLength])  # ligand
+
+        if avg == True:
+            avgg = temp_input_matrix[:ligandLength, 50:50+atomsLength].T + temp_input_matrix[50:50 + atomsLength, :ligandLength]
+            sub_input_matrix[:atomsLength,200:] += np.array(avgg/2)
+        else:
+            sub_input_matrix[200:, :atomsLength] += np.array(temp_input_matrix[:ligandLength, 50:50+atomsLength])
+            sub_input_matrix[:atomsLength,200:] += np.array(temp_input_matrix[50:50 + atomsLength, :ligandLength])
+
+        return sub_input_matrix
 
 
     def save_networks(self, epoch):
@@ -184,7 +242,7 @@ class BaseModel(ABC):
                 if getattr(module, key) is None:
                     state_dict.pop('.'.join(keys))
             if module.__class__.__name__.startswith('InstanceNorm') and \
-               (key == 'num_batches_tracked'):
+                    (key == 'num_batches_tracked'):
                 state_dict.pop('.'.join(keys))
         else:
             self.__patch_instance_norm_state_dict(state_dict, getattr(module, key), keys, i + 1)
@@ -212,13 +270,6 @@ class BaseModel(ABC):
                 # patch InstanceNorm checkpoints prior to 0.4
                 # for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop
                 #     self.__patch_instance_norm_state_dict(state_dict, net, key.split('.'))
-                # name_lst = []
-                # state_dict_clone = state_dict.copy()
-                # for name, _ in net.named_parameters():
-                #     name_lst.append(name)
-                # for k, v in state_dict_clone.items():
-                #     if k not in name_lst:
-                #         del state_dict[k]
                 net.load_state_dict(state_dict)
 
     def print_networks(self, verbose):
@@ -251,3 +302,4 @@ class BaseModel(ABC):
             if net is not None:
                 for param in net.parameters():
                     param.requires_grad = requires_grad
+

@@ -28,18 +28,23 @@ See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-a
 """
 import os
 import random
-
+import seaborn as sns
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import torch
+from sklearn.metrics import pairwise_distances
 
 from options.test_options import TestOptions
 from data import create_dataset
 from models import create_model
-from util.visualizer import save_images
-from util import html
 from models.Preprocessing import save, load
 import wandb
-import sys
 import numpy as np
+from models.rmsd_utils import get_neighbor_points, coherent_point_registration, intersection,compute_coord_fitness
+import json
+
+# model_name, data_name, output_name
+NAME = './output/output_pos/'
 
 def seed_everything(seed):
     random.seed(seed)
@@ -89,6 +94,10 @@ if __name__ == '__main__':
     ligand_rmsd_2step = []
     dists_S_rmsd = []
     starting_rmsd = []
+    predicted_coords = []
+    conformation_rmsds = []
+    coord_fitnesss = []
+    pdbfiles_s = []
 
     if opt.eval:
         model.eval()
@@ -96,35 +105,68 @@ if __name__ == '__main__':
     # selected_ligand_atom_pair_data = getattr(dataset, 'selected_ligand_atom_pair')
 
     for i, data in enumerate(dataset):
-        print(i, data)
+        # print(i, data)
         model.set_input(data)  # unpack data from data loader
         model.test(opt.iterations)         # run inference
         if opt.iterations > 0:
-            pred_ligand_rmsd_1step, pred_ligand_rmsd_2step, pred_starting_rmsd = model.compute_rmsd_2step()
+            pred_ligand_rmsd_1step, pred_ligand_rmsd_2step, pred_starting_rmsd, pred_dm = model.compute_rmsd_2step()
             ligand_rmsd.append(pred_ligand_rmsd_1step)
             ligand_rmsd_2step.append(pred_ligand_rmsd_2step)
         if opt.iterations == 0:
-            pred_ligand_rmsd, pred_starting_rmsd = model.compute_rmsd()
+            pred_ligand_rmsd, pred_starting_rmsd, predicted_loc, pred_dm = model.compute_rmsd()
             ligand_rmsd.append(pred_ligand_rmsd)
         starting_rmsd.append(pred_starting_rmsd)
+        ligand_len = len(data['key'][2])
 
-        # visuals = model.get_current_visuals()  # get image results
-        # img_path = model.get_image_paths()     # get image paths
+        # Compute conformation RMSD -----------------------
+        true_loc = [np.stack(data['key'][2][i]).reshape(4,) for i in range(len(data['key'][2]))][0][1:]
+        predicted_loc = predicted_loc[0][1:]
+
+        if ligand_len == 1:
+            try:
+                # Compute conformation and directionality -----------
+                PDBname = opt.dataroot +'/pdbdata/' + data['key'][0][0].lower()
+                coord_rmsd, coord_fitness = compute_coord_fitness(predicted_loc, true_loc, PDBname, opt.radius)
+                conformation_rmsds.append(coord_rmsd)
+                coord_fitnesss.append(coord_fitness)
+                print(f'coord_rmsd: {coord_rmsd}     coord_fitness:  {coord_fitness}')
+            except:
+                pdbfiles.append(data['key'][0][0].lower())
+                continue
+            # Drawing plots -----------------------------------
+            # fig = plt.figure()
+            # ax = plt.axes(projection='3d')
+            # ax.scatter3D(pt1[:, 0], pt1[:, 1], pt1[:, 2], facecolor='red', s=25, alpha=1)
+            # ax.scatter3D(pt2[:, 0], pt2[:, 1], pt2[:, 2], facecolor='blue', s=25, alpha=1)
+            # ax.scatter3D(pt3[:, 0], pt3[:, 1], pt3[:, 2], facecolor='purple', s=25, alpha=1)
+            # ax.scatter3D(predicted_loc[0][1:][0],predicted_loc[0][1:][1],predicted_loc[0][1:][2], facecolor='gray', s=15*5)
+            # ax.scatter3D(true_loc[0], true_loc[1], true_loc[2], facecolor='black', s=15*5)
+            # ax.set_title(f'Distance: {np.round(np.linalg.norm(predicted_loc-true_loc,2),2)}   RMSD: {np.round(conformation_rmsd,2)}')
+            # plt.savefig(f'./output/output_pos/images/img_{i}.png')
+            # plt.show()
+
         if i % 1000 == 0:  # save images to an HTML file
         # if i == 10 :  # save images to an HTML file
             print('processing (%04d)-th ligands...' % (i))
-
         # save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize, use_wandb=opt.use_wandb)
     # webpage.save()  # save the HTML
     print('--'*100)
     print(f'current epoch is: {opt.epoch}')
-    print(f'mean is : {np.mean(ligand_rmsd)}, median is {np.median(ligand_rmsd)}, std is {np.std(ligand_rmsd)}')
+    # print(f'mean is : {np.mean(ligand_rmsd)}, median is {np.median(ligand_rmsd)}, std is {np.std(ligand_rmsd)}')
+    print(f'The mean coord_rmsd: {np.mean(conformation_rmsds), np.mean(np.array(conformation_rmsds)[np.array(conformation_rmsds)>0])}')
+    print(f'The mean coord_fit: {np.mean(coord_fitnesss), np.mean(np.array(coord_fitnesss)[np.array(conformation_rmsds) > 0])}')
     print('--' * 100)
 
+    import pickle
+    with open(NAME+'opt.pickle', 'wb') as handle:
+        pickle.dump(vars(opt), handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    save(ligand_rmsd, f'./output/ligand_rmsd_{opt.epoch}_seed{opt.seed}_iter{opt.iterations}.pickle')
-    save(ligand_rmsd_2step, f'./output/ligand_rmsd_2step_{opt.epoch}_seed{opt.seed}_iter{opt.iterations}.pickle')
-   # save(dists_S_rmsd, f'./dists_S_rmsd_{opt.epoch}_try1.pickle')
-    save(starting_rmsd, f'./output/starting_rmsd_{opt.epoch}_seed{opt.seed}_iter{opt.iterations}.pickle')
+    save(ligand_rmsd, NAME + '/ligand_rmsd.pickle')
+    # save(starting_rmsd, NAME + '/starting_rmsd.pickle')
+    # save(predicted_coords, NAME + '/pred_true.pickle')
+    # save(ligand_len, NAME +'/ligandlen.pickle')
+    save(pdbfiles_s, NAME + '/pdbfiles_s.pickle')
+    save(conformation_rmsds, NAME + '/conformation_rmsd.pickle')
+    save(coord_fitnesss, NAME + '/coord_fitness.pickle')
 
 print('All is done')

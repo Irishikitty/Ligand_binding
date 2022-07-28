@@ -86,7 +86,6 @@ class TestModel(BaseModel):
         self.image_paths = input['A_paths']
         self.ligandLength = len(self.ligand)
         self.atomsLength = len(self.atoms)
-        self.ligand = ligand_loc_list
 
     def get_input_second(self):
 

@@ -12,7 +12,7 @@ os.getcwd()
 # DIR -------------------------------------------------
 target_ligands_file = './script/saved_ligands_new.txt'
 all_ligand_data_file = './script/ligand_dict_new.json'
-pdb_files_dir = './data/'
+pdb_files_dir = './data_pdb/'
 pdb_files = os.listdir(pdb_files_dir)
 
 # Load MOAD base to read PDB ---------------------------
@@ -40,7 +40,7 @@ def main():
                 try:
                     for pdb_info in pdb_info_list:
                         chain_name, position, pdbid = pdb_info
-                        target_pdb_file = pdb_files_dir + pdbid.lower() + '.pdb'
+                        target_pdb_file = pdb_files_dir + pdbid + '.pdb'
                         read_results = read_ligand_simple(target_pdb_file, ligand_name, chain_name, position)
                         if read_results not in [1,2]:
                             ligand_atom = [i for (i,j) in read_results]
