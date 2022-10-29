@@ -42,9 +42,13 @@ import wandb
 import numpy as np
 from models.rmsd_utils import get_neighbor_points, coherent_point_registration, intersection,compute_coord_fitness
 import json
+import warnings
+
+#suppress warnings
+warnings.filterwarnings('ignore')
 
 # model_name, data_name, output_name
-NAME = './output/output_pos/'
+NAME = './output/'
 
 def seed_everything(seed):
     random.seed(seed)
@@ -98,6 +102,7 @@ if __name__ == '__main__':
     conformation_rmsds = []
     coord_fitnesss = []
     pdbfiles_s = []
+    distances = []
 
     if opt.eval:
         model.eval()
@@ -106,33 +111,39 @@ if __name__ == '__main__':
 
     for i, data in enumerate(dataset):
         # print(i, data)
-        model.set_input(data)  # unpack data from data loader
-        model.test(opt.iterations)         # run inference
-        if opt.iterations > 0:
-            pred_ligand_rmsd_1step, pred_ligand_rmsd_2step, pred_starting_rmsd, pred_dm = model.compute_rmsd_2step()
-            ligand_rmsd.append(pred_ligand_rmsd_1step)
-            ligand_rmsd_2step.append(pred_ligand_rmsd_2step)
-        if opt.iterations == 0:
-            pred_ligand_rmsd, pred_starting_rmsd, predicted_loc, pred_dm = model.compute_rmsd()
-            ligand_rmsd.append(pred_ligand_rmsd)
-        starting_rmsd.append(pred_starting_rmsd)
-        ligand_len = len(data['key'][2])
+        try:
+            model.set_input(data)  # unpack data from data loader
+            model.test(opt.iterations)         # run inference
+            if opt.iterations > 0:
+                pred_ligand_rmsd_1step, pred_ligand_rmsd_2step, pred_starting_rmsd, pred_dm = model.compute_rmsd_2step()
+                ligand_rmsd.append(pred_ligand_rmsd_1step)
+                ligand_rmsd_2step.append(pred_ligand_rmsd_2step)
+            if opt.iterations == 0:
+                pred_ligand_rmsd, pred_starting_rmsd, predicted_loc, pred_dm = model.compute_rmsd()
+                ligand_rmsd.append(pred_ligand_rmsd)
+            starting_rmsd.append(pred_starting_rmsd)
+            ligand_len = len(data['key'][2])
+        except:
+            print(i)
 
-        # Compute conformation RMSD -----------------------
-        true_loc = [np.stack(data['key'][2][i]).reshape(4,) for i in range(len(data['key'][2]))][0][1:]
-        predicted_loc = predicted_loc[0][1:]
 
-        if ligand_len == 1:
-            try:
-                # Compute conformation and directionality -----------
-                PDBname = opt.dataroot +'/pdbdata/' + data['key'][0][0].lower()
-                coord_rmsd, coord_fitness = compute_coord_fitness(predicted_loc, true_loc, PDBname, opt.radius)
-                conformation_rmsds.append(coord_rmsd)
-                coord_fitnesss.append(coord_fitness)
-                print(f'coord_rmsd: {coord_rmsd}     coord_fitness:  {coord_fitness}')
-            except:
-                pdbfiles.append(data['key'][0][0].lower())
-                continue
+
+        # Compute conformation RMSD -----------------------        # true_loc = [np.stack(data['key'][2][i]).reshape(4,) for i in range(len(data['key'][2]))][0][1:]
+        # true_loc = np.squeeze([i.numpy() for i in data['key'][3][0]])
+        # predicted_loc = predicted_loc[0][1:]
+        #
+        # if ligand_len == 1:
+        #     try:
+        #         # Compute conformation and directionality -----------
+        #         PDBname = opt.dataroot +'/pdbdata/' + data['key'][0][0].lower()
+        #         coord_rmsd, coord_fitness, third_distance = compute_coord_fitness(predicted_loc, true_loc, PDBname, opt.radius)
+        #         distances.append(third_distance)
+        #         conformation_rmsds.append(coord_rmsd)
+        #         coord_fitnesss.append(coord_fitness)
+        #         print(f'coord_rmsd: {np.round(coord_rmsd,2)}     coord_fitness:  {np.round(coord_fitness,2)}     distance {np.round(third_distance,2)}')
+        #     except:
+        #         pdbfiles_s.append(data['key'][0][0].lower())
+        #         continue
             # Drawing plots -----------------------------------
             # fig = plt.figure()
             # ax = plt.axes(projection='3d')
