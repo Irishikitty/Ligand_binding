@@ -44,8 +44,8 @@ class SingleDataset(BaseDataset):
 
         self.dir =  opt.dataroot
         print("loading: ", self.dir)
-        self.max_dims = 250
-        self.ligand_atoms_pair = pd.read_pickle(self.dir  + '/charge/df_test_pos.pkl')
+        self.max_dims = 256
+        self.ligand_atoms_pair = pd.read_pickle(self.dir  + '/all_dataset_ligand_env.pickle')['validation']
         self.len = len(self.ligand_atoms_pair)
 
     def __getitem__(self, index):

@@ -522,10 +522,10 @@ class UnetSkipConnectionBlock(nn.Module):
             # upconv_outmost = self.spectral_norm(nn.ConvTranspose2d(inner_nc * 2, outer_nc,
             #                             kernel_size=123, stride=1, padding=0))
             # 2. stride = 2, kernel_size = 2, padding = 3
-            downconv_outmost = self.spectral_norm(nn.Conv2d(input_nc, inner_nc, kernel_size=2,
-                                 stride=2, padding=3, bias=True, padding_mode='reflect'))
+            downconv_outmost = self.spectral_norm(nn.Conv2d(input_nc, inner_nc, kernel_size=4,
+                                 stride=2, padding=1, bias=True, padding_mode='reflect'))
             upconv_outmost = self.spectral_norm(nn.ConvTranspose2d(inner_nc * 2, outer_nc,
-                                        kernel_size=2, stride=2, padding=3))
+                                        kernel_size=4, stride=2, padding=1))
             if use_attention:
                 attention_up = axial_layer.axial32s()
                 down = [downconv_outmost] #???
@@ -676,7 +676,7 @@ class SimpleModel(nn.Module):
         """ Construct a string of attn + conv2d
         Parameters
             num_attn           -- the number of attn blocks, each block involves horizontal+vertical+mask*2
-            axia               -- TODO: axial attention
+            axial               -- TODO: axial attention
 
         Returns an attn block
         """
@@ -702,8 +702,8 @@ class SimpleModel(nn.Module):
     
 if __name__ == '__main__':
 
-    model = define_G(23, 23, 128, 'unet_256', 'instance', True, 'normal', 0.02)
-    # sample = torch.rand(1,23,250,250)
+    model = define_G(23, 23, 128, 'generator', 'instance', True, 'normal', 0.02)
+    sample = torch.rand(16,23,256,256)
     print(model)
     print(model.parameters())
     # model(sample).shape

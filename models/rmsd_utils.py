@@ -84,8 +84,10 @@ def get_rmsd(y_fake, random_env_atom_data, true_ligands, ligandLength):
     temp_ligand_locs = np.array([distance_to_loc(dis_vectors[j], np.stack(random_env_atom_data).T[1:].T).tolist() for j in range(ligandLength)])
     # [ligand_num, 4]
     estimated_ligands_data = np.vstack([[22]*ligandLength, temp_ligand_locs.T]).T
+    # target = [np.stack(true_ligands[i]).reshape(3, ) for i in range(len(true_ligands))]
+    target = np.array([[22] + np.squeeze([i.numpy() for i in true_ligands[0]]).tolist()])
     # difference
-    pred_rmsd = rmsd(estimated_ligands_data, [np.stack(true_ligands[i]).reshape(4,) for i in range(len(true_ligands))], ligandLength)
+    pred_rmsd = rmsd(estimated_ligands_data, target, ligandLength)
 
     return pred_rmsd, estimated_ligands_data
 
@@ -102,7 +104,7 @@ def get_locs(y_fake, random_env_atom_data, ligandLength):
 
 
 # ======================================================================================================================
-def data_toTensor(ligand, atoms, moving = True, dim_max=250, channels = 23):
+def data_toTensor(ligand, atoms, moving = True, dim_max=256, channels = 23):
     '''
     3D coordinates of input (ligand + atom)
     Ouptut tensor with shape [23, dim_sum = 250, 250]
@@ -155,8 +157,10 @@ def data_to_0_1(sample):
 
 
 def get_input_dis_matrix(start, env_atoms, target):
-    tempFakeA = data_toTensor(start, env_atoms, moving = True, dim_max=250, channels=23)
-    tempTrueB = data_toTensor(target, env_atoms, moving = True, dim_max=250, channels=23)
+    target = np.squeeze([i.numpy() for i in target[0]])
+    target = np.array([[22]+target.tolist()])
+    tempFakeA = data_toTensor(start, env_atoms, moving = True, dim_max=256, channels=23)
+    tempTrueB = data_toTensor(target, env_atoms, moving = True, dim_max=256, channels=23)
 
     tempFakeA[0] = data_to_0_1(tempFakeA[0])  # [-1,1]
     tempTrueB[0] = data_to_0_1(tempTrueB[0])  # [-1,1]
@@ -165,8 +169,8 @@ def get_input_dis_matrix(start, env_atoms, target):
 
     fakeA = tempFakeA.unsqueeze(0).float()
     trueB = tempTrueB.unsqueeze(0).float()
-    assert fakeA.shape == (1, 23, 250, 250)
-    assert trueB.shape == (1, 23, 250, 250)
+    assert fakeA.shape == (1, 23, 256, 256)
+    assert trueB.shape == (1, 23, 256, 256)
     env_atoms = [np.stack(env_atoms[i]).reshape(4,) for i in range(len(env_atoms))]
 
     return fakeA, trueB, starting_rmsd, env_atoms
@@ -322,7 +326,7 @@ def donor_neighbor(QUERY: np.array, QUERY_real: np.array,
         atom_lst = i.get_atoms()
         for j in atom_lst:
             atom_coord = j.get_coord()
-            if np.linalg.norm(atom_coord - QUERY) < RADIUS:
+            if np.linalg.norm(atom_coord - QUERY) <= RADIUS:
                 output.append((i.get_resname(), j.name, j.get_coord()))
 
     # donors within RADIUS
@@ -361,7 +365,7 @@ def donor_neighbor(QUERY: np.array, QUERY_real: np.array,
         atom_lst = i.get_atoms()
         for j in atom_lst:
             atom_coord = j.get_coord()
-            if np.linalg.norm(atom_coord - QUERY) < RADIUS:
+            if np.linalg.norm(atom_coord - QUERY) <= RADIUS:
                 temp.append((i.get_resname(), j.name, j.get_coord()))
 
     # (donor_name, coords, dist_metal)
@@ -384,7 +388,10 @@ def donor_neighbor(QUERY: np.array, QUERY_real: np.array,
     pt2 = [donor_lst[i][1] for i in range(len(donor_lst))]
     coord_rmsd = coherent_point_registration(np.asarray(pt1), np.asarray(pt2))
 
-    return output, coord_rmsd
+    # find the 3rd closest distance
+    donor_real_lst.sort(key=lambda x: x[2])
+
+    return output, coord_rmsd, donor_real_lst[2][2]
 
 # Compute avg deviations ..
 def compute_metrics(QUERY, QUERY_real, metrics: list):
@@ -434,11 +441,11 @@ def compute_coord_fitness(QUERY, QUERY_real, NAME, RADIUS):
         DESCRIPTION.
 
     '''
-    metrics, coord_rmsd = donor_neighbor(QUERY, QUERY_real, NAME, RADIUS)
+    metrics, coord_rmsd, distances = donor_neighbor(QUERY, QUERY_real, NAME, RADIUS)
     if coord_rmsd >= 100.0:
         return coord_rmsd, coord_rmsd
     else:
         coord_directionality = np.sum(compute_metrics(QUERY, QUERY_real, metrics))
-        return coord_rmsd, coord_rmsd+coord_directionality
+        return coord_rmsd, coord_rmsd+coord_directionality, distances
 
 

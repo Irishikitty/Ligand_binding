@@ -66,11 +66,10 @@ class TestModel(BaseModel):
         """
         # print(input)
         self.ligand_atoms = input['key']
-        _, _, self.ligand, self.atoms = self.ligand_atoms
-        ligandLen = len(self.ligand)
+        _, _, _, self.ligand, _, _, self.atoms = self.ligand_atoms
+        # ligandLen = len(self.ligand)
 
-        ligand_loc_list = [ele[1:] for ele in self.ligand]
-        ligand_loc_list = [np.stack(ligand_loc_list[i]).reshape(3,) for i in range(ligandLen)]
+        ligand_loc_list = [np.stack(self.ligand[0]).reshape(3,)]
         center_loc = np.mean(ligand_loc_list, axis=0)
         # assert center_loc.shape == (3,)
         start_center_loc = self.path_generator(self.atoms, center_loc.tolist())
