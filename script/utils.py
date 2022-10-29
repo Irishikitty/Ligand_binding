@@ -95,21 +95,24 @@ def read_ligand_simple(file_name, name, chain, pos):
         (list(set(data)), data)
     '''
     data = []
-    with open(file_name) as f:
-        for line in f:
-            altLoc = line[16]
-            if line[0:6] == 'HETATM' and (altLoc == ' ' or altLoc == 'A'):
-                ligand_name = line[17:20].strip()
-                chainID, position, atomSym = line[21], line[22:26].strip(), line[76:78].strip() # atom type
-                x, y, z = line[30:38].strip(), line[38:46].strip(), line[46:54].strip()
-                if chainID == chain and position == pos:
-                    if ligand_name != name: #???
-                        return 1
-                    data.append((atomSym, [float(i) for i in [x,y,z]]))
-
-        if data == []:
-            return 2
-        return data
+    try:
+        with open(file_name) as f:
+            for line in f:
+                altLoc = line[16]
+                if line[0:6] == 'HETATM' and (altLoc == ' ' or altLoc == 'A'):
+                    ligand_name = line[17:20].strip()
+                    chainID, position, atomSym = line[21], line[22:26].strip(), line[76:78].strip() # atom type
+                    x, y, z = line[30:38].strip(), line[38:46].strip(), line[46:54].strip()
+                    if chainID == chain and position == pos:
+                        if ligand_name != name: #???
+                            return 1
+                        data.append((atomSym, [float(i) for i in [x,y,z]]))
+    
+            if data == []:
+                return 2
+            return data
+    except:
+        return 2
 
 def f_read_pdb_line(idx, lines):
     '''

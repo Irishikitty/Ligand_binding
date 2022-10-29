@@ -148,7 +148,7 @@ class BaseModel(ABC):
         ligandLength = getattr(self, 'ligandLength')
         atomsLength = getattr(self, 'atomsLength')
         true_ligands_atoms = getattr(self, 'ligand_atoms')
-        _, _, true_ligands, atoms = true_ligands_atoms
+        _, _, _, true_ligands, _, _, atoms = true_ligands_atoms
 
         assert len(pred_dis_matrix.shape) == 4
         sub_pred_dist_matrix = self.get_original_matrix(pred_dis_matrix.cpu()[0, 0,:, :], ligandLength, atomsLength)
@@ -196,7 +196,7 @@ class BaseModel(ABC):
         :return:
         '''
         input_matrix = copy.deepcopy(temp_input_matrix)
-        assert input_matrix.shape == (250, 250)
+        assert input_matrix.shape == (256, 256)
 
         side = ligandLength + atomsLength
         sub_input_matrix = np.zeros((side,side))

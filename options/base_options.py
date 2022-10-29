@@ -21,9 +21,9 @@ class BaseOptions():
         """Define the common options that are used in both training and test."""
         # basic parameters
         parser.add_argument('--dataroot', default = './datasets', help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
-        parser.add_argument('--name', type=str, default='simple_generator_pos', help='name of the experiment. It decides where to store samples and models: simple_generator')
+        parser.add_argument('--name', type=str, default='simple_generator', help='name of the experiment. It decides where to store samples and models: simple_generator')
         parser.add_argument('--use_wandb', action='store_true', help='use wandb')
-        parser.add_argument('--gpu_ids', type=str, default='0,1', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
+        parser.add_argument('--gpu_ids', type=str, default='-1', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
         # model parameters
         parser.add_argument('--model', type=str, default='simple', help='chooses which model to use. [cycle_gan | pix2pix | test | colorization| simple]')
