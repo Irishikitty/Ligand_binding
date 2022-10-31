@@ -69,12 +69,10 @@ class TestModel(BaseModel):
         _, _, _, self.ligand, _, _, self.atoms = self.ligand_atoms
         # ligandLen = len(self.ligand)
 
-        ligand_loc_list = [np.stack(self.ligand[0]).reshape(3,)]
-        center_loc = np.mean(ligand_loc_list, axis=0)
-        # assert center_loc.shape == (3,)
+        center_loc = np.squeeze([i.numpy() for i in self.ligand[0]])
         start_center_loc = self.path_generator(self.atoms, center_loc.tolist())
-        starting_ligand_loc = ligand_loc_list + np.array(start_center_loc) - center_loc
-        starting_ligand = np.vstack([[22] * len(self.ligand), starting_ligand_loc.T]).T
+        starting_ligand = np.array([22] + np.array(start_center_loc).T.tolist()).T
+        # starting_ligand = np.vstack([[22] + np.array(start_center_loc).T.tolist()]).T
 
         self.real_cpu_dis_matrix, \
         self.target_dis_matrix, \
@@ -83,7 +81,7 @@ class TestModel(BaseModel):
 
         self.real_dis_matrix = self.real_cpu_dis_matrix.to(self.device)
         self.image_paths = input['A_paths']
-        self.ligandLength = len(self.ligand)
+        self.ligandLength = 1
         self.atomsLength = len(self.atoms)
 
     def get_input_second(self):

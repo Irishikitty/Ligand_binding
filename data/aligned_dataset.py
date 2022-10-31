@@ -42,7 +42,7 @@ class AlignedDataset(BaseDataset):
         self.dir =  opt.dataroot
         print("loading from ", self.dir)
         self.max_dims = 250
-        self.data_subdir = opt.dataroot  + '/charge/train_pos/'
+        self.data_subdir = opt.dataroot  + '/metals/train/'
         self.len = len(os.listdir(self.data_subdir))
 
     def __getitem__(self, index):

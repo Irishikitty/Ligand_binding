@@ -4,7 +4,7 @@ from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
 from . import axial_layer
-from axial_attention import AxialAttention, AxialPositionalEmbedding
+
 
 ###############################################################################
 # Helper Functions
@@ -31,7 +31,7 @@ def get_norm_layer(norm_type='instance'):
         norm_layer = functools.partial(nn.InstanceNorm2d, affine=False, track_running_stats=False)
     elif norm_type == 'none':
         def norm_layer(x): return Identity()
-    else: 
+    else:
         raise NotImplementedError('normalization layer [%s] is not found' % norm_type)
     return norm_layer
 
@@ -157,13 +157,6 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
         print(net)
-    elif netG == 'simple':
-        net = SimpleModel(input_nc)
-    elif netG == 'generator':
-        # using solely generator model
-        net = UnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-        net = nn.Sequential(net,
-                            nn.Conv2d(in_channels=23, out_channels=1, kernel_size=1))
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -247,6 +240,8 @@ class GANLoss(nn.Module):
             self.loss = nn.BCEWithLogitsLoss()
         elif gan_mode in ['wgangp']:
             self.loss = None
+        # elif gan_mode in ['l1_only']:
+        #     self.loss = None
         else:
             raise NotImplementedError('gan mode %s not implemented' % gan_mode)
 
@@ -285,6 +280,8 @@ class GANLoss(nn.Module):
                 loss = -prediction.mean()
             else:
                 loss = prediction.mean()
+        # elif self.gan_mode == 'l1_only':
+        #     loss = None
         return loss
 
 
@@ -451,7 +448,7 @@ class ResnetBlock(nn.Module):
 class UnetGenerator(nn.Module):
     """Create a Unet-based generator"""
 
-    def __init__(self, input_nc, output_nc, ngf=128, norm_layer=nn.InstanceNorm2d, use_dropout=True):
+    def __init__(self, input_nc, output_nc, ngf=128, embedding_dim=64, norm_layer=nn.InstanceNorm2d, use_dropout=True):
         """Construct a Unet generator
         Parameters:
             input_nc (int)  -- the number of channels in input images
@@ -471,11 +468,24 @@ class UnetGenerator(nn.Module):
         unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout)
         unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer, dims = 64, use_attention=True)
         unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer, dims =128, use_attention=True)
-        self.model = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)  # add the outermost layer
+        self.model = UnetSkipConnectionBlock(output_nc, ngf, input_nc=embedding_dim+1, submodule=unet_block, outermost=True, norm_layer=norm_layer)  # add the outermost layer
 
-    def forward(self, input):
+        self.atom_embedding_layer = nn.utils.spectral_norm(nn.Conv2d(input_nc - 1, embedding_dim, kernel_size=1,
+                                                            stride=1, bias=True))
+    def forward(self, input_dist,input_atomType, **kwargs):
         """Standard forward"""
+        embedding_atomType = self.atom_embedding_layer(input_atomType)
+        input = torch.cat([input_dist, embedding_atomType], 1)
         return self.model(input)
+
+        #
+        # return {'fake_dm': torch.from_numpy(fake_dm).float(),
+        #         'true_dm': torch.from_numpy(true_dm).float(),
+        #         'atomType':true_ligand_atom_type_matrix,
+        #         'random_atoms_data': random_atoms_data,
+        #         'Ligand_length': len(ligand_atoms),
+        #         'env_atoms_length': 206 }
+
 
 class UnetSkipConnectionBlock(nn.Module):
     """Defines the Unet submodule with skip connection.
@@ -484,7 +494,7 @@ class UnetSkipConnectionBlock(nn.Module):
     """
 
     def __init__(self, outer_nc, inner_nc, input_nc=None,
-                 submodule=None, outermost=False, innermost=False, norm_layer=nn.InstanceNorm2d, use_dropout=False, dims = None, use_attention = False):
+                 submodule=None, outermost=False, innermost=False, embedding_dim = 64, norm_layer=nn.InstanceNorm2d, use_dropout=False, dims = None, use_attention = False):
         """Construct a Unet submodule with skip connections.
 
         Parameters:
@@ -512,6 +522,7 @@ class UnetSkipConnectionBlock(nn.Module):
         downnorm = norm_layer(inner_nc)
         uprelu = nn.ReLU(True)
         upnorm = norm_layer(outer_nc)
+        embedding_dim = 64
 
         if outermost:
             # H, W = 250, C = 24 ???
@@ -522,17 +533,25 @@ class UnetSkipConnectionBlock(nn.Module):
             # upconv_outmost = self.spectral_norm(nn.ConvTranspose2d(inner_nc * 2, outer_nc,
             #                             kernel_size=123, stride=1, padding=0))
             # 2. stride = 2, kernel_size = 2, padding = 3
+
+            # downconv_outmost = self.spectral_norm(nn.Conv2d(embedding_dim + 1, inner_nc, kernel_size=2,
+            #                      stride=2, padding=3, bias=True, padding_mode='reflect'))
+
             downconv_outmost = self.spectral_norm(nn.Conv2d(input_nc, inner_nc, kernel_size=4,
                                  stride=2, padding=1, bias=True, padding_mode='reflect'))
             upconv_outmost = self.spectral_norm(nn.ConvTranspose2d(inner_nc * 2, outer_nc,
                                         kernel_size=4, stride=2, padding=1))
+            upconv_outmost_final = self.spectral_norm(nn.Conv2d(outer_nc, 1,
+                                        kernel_size=1, stride=1, padding=0))
+
             if use_attention:
                 attention_up = axial_layer.axial32s()
                 down = [downconv_outmost] #???
                 up = [uprelu, attention_up, upconv_outmost, nn.Tanh()]
             else:
                 down = [downconv_outmost]
-                up = [uprelu, upconv_outmost, nn.Tanh()]
+                up = [uprelu, upconv_outmost, upconv_outmost_final, nn.Tanh()]
+                # up = [uprelu, upconv_outmost]
             model = down +  [submodule] + up
         elif innermost:
             upconv = self.spectral_norm(nn.ConvTranspose2d(inner_nc, outer_nc,
@@ -560,8 +579,10 @@ class UnetSkipConnectionBlock(nn.Module):
 
             if use_dropout:
                 model = down + [submodule] + up + [nn.Dropout(0.5)]
+                # model = down +  up + [nn.Dropout(0.5)]
             else:
                 model = down + [submodule] + up
+                # model = down + up
 
         self.model = nn.Sequential(*model)
 
@@ -661,56 +682,36 @@ class PixelDiscriminator(nn.Module):
         """Standard forward."""
         return self.net(input)
 
-class SimpleModel(nn.Module):
-    """Define a Resnet block"""
 
-    def __init__(self, input_nc):
-        """Initialize the axial-attention block
-        Github link: https://github.com/lucidrains/axial-attention
-        """
-        super(SimpleModel, self).__init__()
-        self.attn_block = self.build_attn_block(input_nc, n_head = 1, num_attn = 4, axial = None)
-        self.conv = nn.Conv2d(input_nc, 1, kernel_size = 1)
-        
-    def build_attn_block(self, inpu_nc, n_head = 1, num_attn = 4, axial = None):
-        """ Construct a string of attn + conv2d
-        Parameters
-            num_attn           -- the number of attn blocks, each block involves horizontal+vertical+mask*2
-            axial               -- TODO: axial attention
-
-        Returns an attn block
-        """
-        attn_block = []
-        attn = AxialAttention(
-            dim=inpu_nc,  # embedding dimension
-            dim_index=1,  # where is the embedding dimension
-            # dim_heads=23,  # dimension of each head. defaults to dim // heads if not supplied
-            heads=n_head,  # number of heads for multi-head attention
-            num_dimensions=2,  # number of axial dimensions (images is 2, video is 3, or more)
-            sum_axial_out=True # whether to sum the contributions of attention on each axis, or to run the input through them sequentially. defaults to true
-        )
-        for _ in  range(num_attn):
-            attn_block.append(attn)
-        
-        return nn.Sequential(*attn_block)
-    
-    def forward(self, x):
-        """Forward function (with skip connections)"""
-        x = self.attn_block(x)  
-        out = self.conv(x)
-        return out
-    
 if __name__ == '__main__':
 
-    model = define_G(23, 23, 128, 'generator', 'instance', True, 'normal', 0.02)
-    sample = torch.rand(16,23,256,256)
-    print(model)
-    print(model.parameters())
-    # model(sample).shape
-    # net = UnetGenerator(24,24)
-    # net2 = NLayerDiscriminator(48)
-    # print(net2)
-    # input = torch.rand((10, 48, 250, 250))
+    # net = define_G(24, 24, 128, 'unet_256', 'instance', True, 'normal', 0.02)
+    # conv1 = nn.Conv2d(24, 128, kernel_size=4,
+    #                              stride=2, padding=1, bias=True, padding_mode='reflect')
+    #
+    # TransConv = nn.ConvTranspose2d(128 * 2, 24,
+    #                    kernel_size=4, stride=2, padding=1, bias=True)
+
+    # print(model)
+    net = UnetGenerator(24,24)
+    print(net)
+
+    input =  {'input_dist': torch.rand((10, 1, 256, 256)),
+            'input_atomType': torch.rand((10, 23, 256, 256)),
+            'target_dist': torch.rand((10, 1, 256, 256)),
+            'random_atoms_data': torch.rand((10, 1, 206, 4)),
+            'Ligand_length': torch.rand((10, 1)),
+            'env_atoms_length': 206}
+
+    output = net(**input)
+    print(output.shape)
+    # print(output)
+    print(torch.max(output))
+    #
+    # inner_input = torch.rand((10, 128*2, 128, 128))
+    # # output = conv1(input)
+    # output_TransConv = TransConv(inner_input)
+    # print(output_TransConv.shape)
     # output = net2(input)
     # print(output.shape)
     # print()
@@ -725,5 +726,6 @@ if __name__ == '__main__':
     #         output = net[i](input)
     #         print(output.shape)
     #         input = output
+
 
 

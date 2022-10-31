@@ -67,7 +67,7 @@ def distance_3D(x, y, axis=None):
 
 # ======================================================================================================================
 
-def get_rmsd(y_fake, random_env_atom_data, true_ligands, ligandLength):
+def get_rmsd(y_fake, random_env_atom_data, true_ligands, ligandLength=1):
     '''
     Recover distance mx to 3D coordinates for ligands
 
@@ -87,7 +87,7 @@ def get_rmsd(y_fake, random_env_atom_data, true_ligands, ligandLength):
     # target = [np.stack(true_ligands[i]).reshape(3, ) for i in range(len(true_ligands))]
     target = np.array([[22] + np.squeeze([i.numpy() for i in true_ligands[0]]).tolist()])
     # difference
-    pred_rmsd = rmsd(estimated_ligands_data, target, ligandLength)
+    pred_rmsd = rmsd(estimated_ligands_data, target, 1)
 
     return pred_rmsd, estimated_ligands_data
 
@@ -117,12 +117,12 @@ def data_toTensor(ligand, atoms, moving = True, dim_max=256, channels = 23):
 
     '''
     atoms = [np.stack(atoms[i]).reshape(4,) for i in range(len(atoms))]
-    ligand = [np.stack(ligand[i]).reshape(4,) for i in range(len(ligand))]
+    # ligand = [np.stack(ligand[i]).reshape(4,) for i in range(len(ligand))]
 
     numAtoms, _ = np.array(atoms).shape
-    numLigandAtoms, _ = np.array(ligand).shape
+    numLigandAtoms = 1
 
-    A_coordinates = pairwise_distances([[x, y, z] for [_, x, y, z] in ligand] + [[x, y, z] for [i, x, y, z] in atoms])
+    A_coordinates = pairwise_distances([ligand[1:]] + [[x, y, z] for [_, x, y, z] in atoms])
     types = [int(i) for [i, _, _, _] in atoms]
     container = torch.zeros(channels-1, *A_coordinates.shape)
     for i, c in enumerate(types):
@@ -134,14 +134,7 @@ def data_toTensor(ligand, atoms, moving = True, dim_max=256, channels = 23):
     A_coordinates = torch.from_numpy(A_coordinates.reshape(-1, *A_coordinates.shape))
     A_coordinates = torch.cat([A_coordinates, container], dim=0)
     A_coordinates[22, :numLigandAtoms, :numLigandAtoms] = 1
-    # move blocks
-    out = torch.zeros(channels, dim_max, dim_max)  # first channel container
-    out[:, :numLigandAtoms, :numLigandAtoms] += A_coordinates[:, :numLigandAtoms, :numLigandAtoms]  # upper left
-    out[:, 50:50 + numAtoms, 50:50 + numAtoms] += A_coordinates[:, numLigandAtoms:, numLigandAtoms:]  # lower right
-    if moving == True:
-        out[:, :numLigandAtoms, 50:50 + numAtoms] += A_coordinates[:, :numLigandAtoms, numLigandAtoms:]  # rectangle upper
-        out[:, 50:50 + numAtoms, :numLigandAtoms] += A_coordinates[:, numLigandAtoms:, :numLigandAtoms]  # rectangle lower
-    return out
+    return A_coordinates
 
 
 # ======================================================================================================================
@@ -158,19 +151,20 @@ def data_to_0_1(sample):
 
 def get_input_dis_matrix(start, env_atoms, target):
     target = np.squeeze([i.numpy() for i in target[0]])
-    target = np.array([[22]+target.tolist()])
-    tempFakeA = data_toTensor(start, env_atoms, moving = True, dim_max=256, channels=23)
-    tempTrueB = data_toTensor(target, env_atoms, moving = True, dim_max=256, channels=23)
+    target = np.array([22]+target.tolist())
+    tempFakeA = data_toTensor(start, env_atoms, channels=23)
+    tempTrueB = data_toTensor(target, env_atoms, channels=23)
 
     tempFakeA[0] = data_to_0_1(tempFakeA[0])  # [-1,1]
     tempTrueB[0] = data_to_0_1(tempTrueB[0])  # [-1,1]
 
-    starting_rmsd = rmsd(start, [np.stack(target[i]).reshape(4,) for i in range(len(target))], len(target))
+    # starting_rmsd = rmsd(start, [np.stack(target[i]).reshape(4,) for i in range(len(target))], 1)
+    starting_rmsd = np.linalg.norm(start-target, 2)
 
     fakeA = tempFakeA.unsqueeze(0).float()
     trueB = tempTrueB.unsqueeze(0).float()
-    assert fakeA.shape == (1, 23, 256, 256)
-    assert trueB.shape == (1, 23, 256, 256)
+    # assert fakeA.shape == (1, 23, 256, 256)
+    # assert trueB.shape == (1, 23, 256, 256)
     env_atoms = [np.stack(env_atoms[i]).reshape(4,) for i in range(len(env_atoms))]
 
     return fakeA, trueB, starting_rmsd, env_atoms

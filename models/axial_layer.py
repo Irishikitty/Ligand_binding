@@ -107,7 +107,7 @@ class AxialBlock(nn.Module):
         # Both self.conv2 and self.downsample layers downsample the input when stride != 1
         self.conv_down = conv1x1(inplanes, width)                   # inplanes = 24, width = 24
         self.bn1 = norm_layer(width)
-        # self.hight_block = AxialAttention(width, width, groups=groups, kernel_size=kernel_size)
+        self.hight_block = AxialAttention(width, width, groups=groups, kernel_size=kernel_size, stride=stride)
         self.width_block = AxialAttention(width, width, groups=groups, kernel_size=kernel_size, stride=stride, width=True)  # width = 24, groups = 6, kernel_size=55, stride = 1, width
         self.conv_up = conv1x1(width, planes * self.expansion)
         self.bn2 = norm_layer(planes * self.expansion)
@@ -121,7 +121,7 @@ class AxialBlock(nn.Module):
         out = self.bn1(out)
         out = self.relu(out)
 
-        # out = self.hight_block(out)                 # torch.Size([8, 64, 56, 56])
+        out = self.hight_block(out)                 # torch.Size([8, 64, 56, 56])
         out = self.width_block(out)                 # torch.Size([8, 64, 56, 56])
         out = self.relu(out)
 
@@ -255,7 +255,7 @@ def axial_1layer(dim):
 
 if __name__=="__main__":
     # model = AxialAttentionNet(AxialBlock, in_channels=24, layers = 1, span = 55, groups = 6)
-    model = axial_3layers()
+    model = axial_3layers(32)
     input = torch.rand((10, 128, 32, 32))
     print(model)
     output = model(input)

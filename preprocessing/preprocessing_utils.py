@@ -2,6 +2,9 @@ import os
 from collections import deque, defaultdict
 import numpy as np
 from copy import copy
+import re
+
+
 amio_acids_list = ['ARG', 'HIS', 'LYS', 'ASP', 'GLU', 'SER', 'THR', 'ASN', 'GLN', 'CYS', 'GLY', 'PRO', 'ALA', 'VAL',
                    'ILE', 'LEU', 'MET', 'PHE', 'TYR', 'TRP']
 
@@ -333,16 +336,66 @@ def check_peptide(ligand_name):
 
 # ==============================================================================
 
+# def get_chainIDs(all_lines):
+#     list_chainID = []
+#     for line in all_lines:
+#         if line[0:6] == 'ATOM  ':
+#             chainID = line[21]
+#             if chainID not in list_chainID:
+#                 list_chainID.append(chainID)
+#             else:
+#                 continue
+#     return list_chainID
+
 def get_chainIDs(all_lines):
-    list_chainID = []
+
+    removed_chainID_list = []
+    ser_chainID_dict = {}
     for line in all_lines:
-        if line[0:6] == 'ATOM  ':
-            chainID = line[21]
-            if chainID not in list_chainID:
-                list_chainID.append(chainID)
+        if line[0:6] == 'SEQRES':
+            serNum = line[8:10].strip()
+            chainID = line[11].strip()
+            resNames = re.split(r"\s+", line[19:70].strip())
+            if not all([resName in amio_acids_list for resName in resNames]):
+                removed_chainID_list.append(chainID)
+
+            numRes = line[13:17].strip()
+
+            if chainID not in ser_chainID_dict.keys():
+                ser_chainID_dict[chainID] = numRes
             else:
                 continue
+
+    # ser_chainID_dict_output = {k: v for k, v in ser_chainID_dict.items() if len(v) > 1}
+    list_chainID = [k for k, v in ser_chainID_dict.items() if  int(v) >= 20]
+    # list_chainID = [k for k, v in ser_chainID_dict.items() if (k not in removed_chainID_list and int(v) >= 20)]
     return list_chainID
+
+# ==============================================================================
+
+def check_missing_residues(all_lines):
+    start = None
+    end = None
+    start_index_found = False
+    missing_residue = {}
+    for numLine, line in enumerate(all_lines):
+        if line[0:27] == 'REMARK 465   M RES C SSSEQI':
+            start = numLine
+            start_index_found = True
+        if line[0:10] != 'REMARK 465' and line[10: 26] == '                ' and start_index_found:
+            end = numLine
+            break
+    if start and end:
+        target_lines = all_lines[start+1: end]
+        for line in target_lines:
+            if line[19].strip() not in missing_residue.keys():
+                missing_residue[line[19].strip()] = [line[15: 18].strip()]
+            else:
+                missing_residue[line[19].strip()].append(line[15: 18].strip())
+
+    return missing_residue
+
+
 
 # ==============================================================================
 
@@ -353,25 +406,38 @@ def read_pdb(file_name, model_index = None, result = None):
     with open(file_name) as f:
         lines_total = f.readlines()
         chainID_list = get_chainIDs(lines_total)
-        pdb_atoms_chainID = {}
-        # result = check_models(file_name)
-        for chainID in chainID_list:
+        if chainID_list:
+            pdb_atoms_chainID = {}
+            # result = check_models(file_name)
+            for chainID in chainID_list:
+                if result:
+                    count = 1
+                    for (start, end) in result:
+                        model_lines = lines_total[start: end]
+                        atomTypes, atomCoords, _ = get_env_atoms(model_lines, chainID)
+                        if not atomTypes and not atomCoords:     # ignore this chain for the current model index
+                            count += 1
+                            continue
+                        assert atomTypes != [] and atomCoords != []
+                        pdb_for_each_model[f'model {count}'] = (atomTypes, atomCoords)
+                        count += 1
 
-            if result:
-                count = 1
-                for (start, end) in result:
-                    model_lines = lines_total[start: end]
-                    atomTypes, atomCoords, _ = get_env_atoms(model_lines, chainID)
-                    assert atomTypes != [] and atomCoords != []
-                    pdb_for_each_model[f'model {count}'] = (atomTypes, atomCoords)
-                    count += 1
+                    if f'model {model_index}' in pdb_for_each_model.keys():
+                        atomTypes, atomCoords = pdb_for_each_model[f'model {model_index}']
+                    else:
+                        continue
+                else:
+                    atomTypes, atomCoords, _ = get_env_atoms(lines_total, chainID)
+                    if not atomTypes and not atomCoords:
+                        continue
+                #     return None
+                pdb_atoms_chainID[chainID] = (atomTypes, atomCoords)
+            return pdb_atoms_chainID
+        else:
+            return None
 
-                atomTypes, atomCoords = pdb_for_each_model[f'model {model_index}']
-            else:
-                atomTypes, atomCoords, _ = get_env_atoms(lines_total, chainID)
-            pdb_atoms_chainID[chainID] = (atomTypes, atomCoords)
     # return atomTypes, atomCoords
-    return pdb_atoms_chainID
+
 
 
 # ==============================================================================
@@ -436,13 +502,15 @@ def get_model_index(file_name, name, chain, pos, result):
 # ==============================================================================
 
 
-
 def get_env_atoms(lines, chain):
     atomNames = []
     resNames = []
     coords = []
-    for index, line in enumerate(lines):
+    chain_start_end_dict = get_ter_index(lines)
+    start, end = chain_start_end_dict[chain]
+    for index, line in enumerate(lines[start:end]):
         if line[0:6] == 'ATOM  ':
+            assert line[21] == chain
             atomName = line[12:16].strip()
             x = float(line[30:38].strip())
             y = float(line[38:46].strip())
@@ -452,19 +520,54 @@ def get_env_atoms(lines, chain):
             resName = line[17:20]
 
             if (atomSym != 'H') and (altLoc == ' ' or altLoc == 'A') and line[21] == chain:
-                label = label_atom(resName, atomName)
-                atomNames.append(atomName)
-                resNames.append(resName)
-                coords.append([label, x, y, z])
+                try:
+                    label = label_atom(resName, atomName)
+                    atomNames.append(atomName)
+                    resNames.append(resName)
+                    coords.append([label, x, y, z])
+                except KeyError:
+                    return None, None, None
+
     return atomNames, coords, resNames
 
 
 
 # ==============================================================================
 
+def get_ter_index(lines):
+    ter_index_list = [(line[21], index) for index, line in enumerate(lines) if line[0:6] == 'TER   ' ]
+
+    chain_start_end_dict = {}
+    start = 0
+    for i in range(len(ter_index_list)):
+        chain, end = ter_index_list[i]
+        chain_start_end_dict[chain] = [start, end]
+        start = end+1
+    return chain_start_end_dict
+
+
 
 
 if __name__=="__main__":
+
+    # for index, i in enumerate(['a','b', 'c', 'd', 'e']):
+    #     print(index)
+    #     if index != 2:
+    #         if i == 'c':
+    #             print(index)
+    #         else:
+    #             continue
+    #     else:
+    #         print('next')
+    #
+    # counter = 1
+    # for ele in ['1','b', '3', 'd', 'e']:
+    #     if ele not in ['a','b', 'c', 'd', 'e']:
+    #         counter += 1
+    #         continue
+    #     print(counter)
+    #     counter +=1
+
 
     # import pickle
     # dataset = pickle.load(open("dataset.pickle","rb"))
@@ -485,6 +588,20 @@ if __name__=="__main__":
             # if len(ligand_name.split(' ')) > 1:
             #     print(ligand_name, data[-2])
             # print(len(ligand_name.split(' ')))
+
+    pdbfile_name = ['2gvj.pdb', '1n51.pdb', '5cad.pdb', '2h06.pdb']
+    for file in pdbfile_name:
+        with open(file) as f:
+            lines = f.readlines()
+            chainIDs = get_chainIDs(lines)
+            # ter_index_list, chain_loc_dict = get_ter_index(lines)
+            atomNames, coords, resNames = get_env_atoms(lines, 'A')
+            # missing_residue = check_missing_residues(lines)
+            print(ter_index_list)
+            print(chain_loc_dict)
+
+
+
 
 
 
@@ -513,9 +630,9 @@ if __name__=="__main__":
     #     data = data_list[index]
 
     # output1 = read_ligand_simple('2q4v.pdb', 'ACO HOH', 'A', '306')
-    output1 = read_ligand_simple('2q4v.pdb', 'HOH', 'A', '307')
-    index = get_model_index('2q4v.pdb', 'HOH', 'A', '307')
-    print(output1)
+    # output1 = read_ligand_simple('2q4v.pdb', 'HOH', 'A', '307')
+    # index = get_model_index('2q4v.pdb', 'HOH', 'A', '307')
+    # print(output1)
     # output11 = [output1[i][:-1] for i in range(len(output1))]
     # print(output11)
 

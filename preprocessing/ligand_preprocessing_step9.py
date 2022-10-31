@@ -54,6 +54,8 @@ if __name__=="__main__":
         data_deque = deque()
         for data in tqdm(value):
             pdbid, chainID, ligand_atoms, axes, pos, ligand  = data
+            print(f'{pdbid},   {chainID},   {pos}')
+        # if len(ligand_atoms) == 1:
             # # if pdbid == '5O0Z':
             # #     continue
             # pdbid = '6FJJ'
@@ -62,7 +64,6 @@ if __name__=="__main__":
             # ligand = 'LSA'
             #     print(i)
             #     continue
-
             # print('=='*50)
             print(pdbid, chainID, pos, ligand)
             file_name = 'pdb_files_all_new/' + pdbid.lower() + '.pdb'
@@ -76,7 +77,7 @@ if __name__=="__main__":
                 min_dist_chain = {}
                 for chain, atoms_data in pdb_atoms4chainIDs.items():
                     atomTypes, atomCoords = atoms_data
-                    _, dist = pairwise_distances_argmin_min(axes, np.array(atomCoords).T[1:].T)
+                    dist = pairwise_distances(axes, np.array(atomCoords).T[1:].T)
                     min_dist_chain[chain] = np.min(dist)
                 # closest_chain = min(min_dist_chain, key=min_dist_chain.get)
                 min_dist_chain_non_zero = {key: value for key, value in min_dist_chain.items() if value > 0}
